@@ -5,6 +5,13 @@ export interface User {
   email: string;
   name: string;
   avatarUrl: string;
+  groupId?: string;
+  role?: 'admin' | 'member';
+  contactInfo?: string;
+  address?: string;
+  collegeName?: string;
+  department?: string;
+  collegeYear?: string;
 }
 
 export interface Expense {

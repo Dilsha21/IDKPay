@@ -1,5 +1,6 @@
 'use client';
 
+
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -26,7 +27,9 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { logIn } from '../actions';
-import { Scale } from 'lucide-react';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { Logo } from '@/components/logo';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email.' }),
@@ -48,20 +51,26 @@ export default function LoginPage() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
-    const result = await logIn(values);
-    if (result.error) {
-      toast({
-        title: 'Login Failed',
-        description: result.error,
-        variant: 'destructive',
-      });
-      setIsSubmitting(false);
-    } else {
+
+    try {
+      // Use Firebase Auth client SDK directly on the client
+      await signInWithEmailAndPassword(auth, values.email, values.password);
+      
       toast({
         title: 'Success!',
         description: 'You have successfully logged in.',
       });
-      router.push('/');
+
+      setIsSubmitting(false);
+      router.replace('/');
+      router.refresh();
+    } catch (error: any) {
+      toast({
+        title: 'Login Failed',
+        description: error.message || 'An error occurred during login.',
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
     }
   }
 
@@ -70,9 +79,9 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
-                <Scale className="w-12 h-12 text-primary"/>
+                <Logo size="lg" />
             </div>
-          <CardTitle className="text-2xl font-bold">Roommate Rendezvous</CardTitle>
+          <CardTitle className="text-2xl font-bold">IDKPay</CardTitle>
           <CardDescription>Log in to manage your shared expenses</CardDescription>
         </CardHeader>
         <CardContent>

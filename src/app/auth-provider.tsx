@@ -38,7 +38,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
-          setUser({ uid: firebaseUser.uid, ...userDoc.data() } as User);
+          const userData = userDoc.data() as User;
+          console.log('User data from Firestore:', userData);
+          console.log('User groupId:', userData.groupId);
+          console.log('User role:', userData.role);
+          // Ensure user has default avatar if not set
+          const userWithDefaultAvatar = {
+            ...userData,
+            avatarUrl: userData.avatarUrl || 'https://static.vecteezy.com/system/resources/previews/020/765/399/non_2x/default-profile-account-unknown-icon-black-silhouette-free-vector.jpg'
+          };
+          setUser(userWithDefaultAvatar as User);
         } else {
           // Handle case where user exists in Auth but not Firestore
           setUser(null); 

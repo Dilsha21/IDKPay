@@ -38,6 +38,11 @@ export function AddExpenseForm({ users, currentUser, setDialogOpen }: AddExpense
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Filter users to only show those in the same group
+  const groupUsers = users.filter(user => 
+    user.groupId === currentUser.groupId && user.uid !== currentUser.uid
+  );
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -112,7 +117,41 @@ export function AddExpenseForm({ users, currentUser, setDialogOpen }: AddExpense
                 </FormDescription>
               </div>
               <div className="space-y-2">
-                {users.map((user) => (
+                {/* Always show current user */}
+                <FormField
+                  key={currentUser.uid}
+                  control={form.control}
+                  name="sharedWith"
+                  render={({ field }) => {
+                    return (
+                      <FormItem
+                        key={currentUser.uid}
+                        className="flex flex-row items-center space-x-3 space-y-0 p-2 rounded-md bg-primary/10 border border-primary/20"
+                      >
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value?.includes(currentUser.uid)}
+                            onCheckedChange={(checked) => {
+                              return checked
+                                ? field.onChange([...field.value, currentUser.uid])
+                                : field.onChange(
+                                    field.value?.filter(
+                                      (value) => value !== currentUser.uid
+                                    )
+                                  );
+                            }}
+                          />
+                        </FormControl>
+                        <FormLabel className="font-normal w-full cursor-pointer">
+                          {currentUser.name} (You)
+                        </FormLabel>
+                      </FormItem>
+                    );
+                  }}
+                />
+                
+                {/* Show group members */}
+                {groupUsers.map((user) => (
                   <FormField
                     key={user.uid}
                     control={form.control}
@@ -138,13 +177,20 @@ export function AddExpenseForm({ users, currentUser, setDialogOpen }: AddExpense
                             />
                           </FormControl>
                           <FormLabel className="font-normal w-full cursor-pointer">
-                            {user.name} {user.uid === currentUser.uid && '(You)'}
+                            {user.name}
                           </FormLabel>
                         </FormItem>
                       );
                     }}
                   />
                 ))}
+                
+                {groupUsers.length === 0 && (
+                  <div className="text-center py-4 text-muted-foreground">
+                    <p>No other members in your group</p>
+                    <p className="text-sm">Add members to your group to share expenses</p>
+                  </div>
+                )}
               </div>
               <FormMessage />
             </FormItem>

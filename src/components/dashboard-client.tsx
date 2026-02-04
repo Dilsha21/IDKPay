@@ -15,10 +15,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from './ui/button';
 import { PlusCircle } from 'lucide-react';
 import { useState } from 'react';
+import { EditExpenseDialog } from './edit-expense-dialog';
+import { deleteExpense } from '@/app/actions';
 
 export function DashboardClient() {
   const { user } = useAuth();
   const [isAddExpenseOpen, setAddExpenseOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
 
   // Memoize queries to prevent re-renders
   const usersQuery = useMemo(() => query(collection(db, 'users')), []);
@@ -40,6 +43,25 @@ export function DashboardClient() {
   const { docs: balances, loading: balancesLoading } = useFirestoreQuery<Balance>(balancesQuery);
 
   const loading = usersLoading || expensesLoading || balancesLoading;
+
+  const handleEditExpense = (expense: Expense) => {
+    setEditingExpense(expense);
+  };
+
+  const handleDeleteExpense = async (expenseId: string) => {
+    if (!confirm('Are you sure you want to delete this expense? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const result = await deleteExpense({ expenseId });
+      if (result.error) {
+        console.error('Delete failed:', result.error);
+      }
+    } catch (error) {
+      console.error('Delete failed:', error);
+    }
+  };
 
   if (!user) return null;
 
@@ -82,12 +104,28 @@ export function DashboardClient() {
                     {loading ? (
                         <ExpenseList.Skeleton />
                     ) : (
-                        <ExpenseList expenses={expenses} users={users} />
+                        <ExpenseList 
+                            expenses={expenses} 
+                            users={users} 
+                            currentUserId={user.uid}
+                            onEditExpense={handleEditExpense}
+                            onDeleteExpense={handleDeleteExpense}
+                        />
                     )}
                 </CardContent>
             </Card>
         </div>
       </div>
+      
+      {user && (
+        <EditExpenseDialog
+          expense={editingExpense}
+          users={users}
+          currentUser={user}
+          open={!!editingExpense}
+          onOpenChange={(open) => !open && setEditingExpense(null)}
+        />
+      )}
     </div>
   );
 }

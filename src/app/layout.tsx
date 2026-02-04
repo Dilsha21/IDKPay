@@ -2,10 +2,11 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/app/auth-provider';
 import { Toaster } from '@/components/ui/toaster';
+import { Footer } from '@/components/footer';
 import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = {
-  title: 'Roommate Rendezvous',
+  title: 'IDKPay',
   description: 'Shared expense manager for roommates.',
 };
 
@@ -28,9 +29,12 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className={cn('font-body antialiased min-h-screen bg-background')}>
+      <body className={cn('font-body antialiased min-h-screen bg-background flex flex-col')}>
         <AuthProvider>
-          {children}
+          <main className="flex-1">
+            {children}
+          </main>
+          <Footer />
           <Toaster />
         </AuthProvider>
       </body>
