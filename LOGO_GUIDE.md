@@ -8,7 +8,7 @@ Place your logo file in the **public** folder:
 e:\studio2\public\
 ├── logo.png          ← Your main logo (PNG with transparency)
 ├── logo.svg          ← Vector version (optional, for better quality)
-└── favicon.ico        ← Favicon (16x16 or 32x32)
+└── favicon.png        ← Favicon version (can be same as logo.png)
 ```
 
 ### Recommended Logo Formats:
@@ -84,11 +84,13 @@ export const metadata: Metadata = {
   title: 'IDKPay',
   description: 'Shared expense manager for roommates.',
   icons: {
-    icon: '/favicon.ico',
-    apple: '/apple-touch-icon.png',
+    icon: '/logo.png',
+    apple: '/logo.png',
   },
 };
 ```
+
+**Note**: Using `logo.png` instead of `favicon.ico` for consistency with your main logo.
 
 ## 🎨 Logo Design Tips
 

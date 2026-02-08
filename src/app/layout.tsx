@@ -8,6 +8,10 @@ import { cn } from '@/lib/utils';
 export const metadata: Metadata = {
   title: 'IDKPay',
   description: 'Shared expense manager for roommates.',
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
 };
 
 export default function RootLayout({
