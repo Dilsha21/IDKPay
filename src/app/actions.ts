@@ -64,6 +64,7 @@ export async function signUp(values: any) {
     if (userDoc.exists()) {
       console.log('User document already exists, updating...');
       // User document exists, update it instead of creating new
+      //check
       const updateData: any = {
         name: values.name,
         contactInfo: values.contactInfo,
