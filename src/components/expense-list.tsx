@@ -60,6 +60,11 @@ export function ExpenseList({ expenses, users, currentUserId, onEditExpense, onD
                   <p className="font-medium">{expense.description}</p>
                   <p className="text-sm text-muted-foreground">
                     {payer?.name || 'Unknown User'} paid
+                    {expense.payerId === currentUserId && !expense.sharedWith.includes(currentUserId) && (
+                      <span className="ml-2 text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">
+                        You bore this expense
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>

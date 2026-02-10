@@ -28,7 +28,11 @@ export function DashboardClient() {
   const expensesQuery = useMemo(
     () =>
       user
-        ? query(collection(db, 'expenses'), where('sharedWith', 'array-contains', user.uid), orderBy('timestamp', 'desc'))
+        ? query(
+            collection(db, 'expenses'), 
+            where('payerId', '==', user.uid),
+            orderBy('timestamp', 'desc')
+          )
         : null,
     [user]
   );
