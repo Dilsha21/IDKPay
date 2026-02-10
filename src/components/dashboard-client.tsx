@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useFirestoreQuery } from '@/hooks/use-firestore-query';
 import { db } from '@/lib/firebase';
-import { collection, query, where, orderBy, or } from 'firebase/firestore';
+import { collection, query, where, orderBy } from 'firebase/firestore';
 import type { User, Expense, Balance } from '@/lib/types';
 import { BalanceSummary } from './balance-summary';
 import { ExpenseList } from './expense-list';
@@ -30,10 +30,7 @@ export function DashboardClient() {
       user
         ? query(
             collection(db, 'expenses'), 
-            or(
-              where('payerId', '==', user.uid),
-              where('sharedWith', 'array-contains', user.uid)
-            ),
+            where('payerId', '==', user.uid),
             orderBy('timestamp', 'desc')
           )
         : null,
