@@ -26,10 +26,13 @@ export function DebtAnalytics({ expenses, users, currentUserId }: DebtAnalyticsP
       return acc;
     }, {} as Record<string, User>);
 
+    // Filter out expenses that don't have a timestamp yet (transient state)
+    const validExpenses = expenses.filter(e => e.timestamp);
+
     // Group expenses by month
     const expensesByMonth = new Map<string, Expense[]>();
-    
-    expenses.forEach(expense => {
+
+    validExpenses.forEach(expense => {
       const monthKey = format(expense.timestamp.toDate(), 'MMM yyyy');
       if (!expensesByMonth.has(monthKey)) {
         expensesByMonth.set(monthKey, []);
@@ -39,14 +42,14 @@ export function DebtAnalytics({ expenses, users, currentUserId }: DebtAnalyticsP
 
     // Calculate monthly data
     const monthlyData: MonthlyData[] = [];
-    
+
     expensesByMonth.forEach((monthExpenses, monthKey) => {
       const monthStart = startOfMonth(monthExpenses[0].timestamp.toDate());
       const monthEnd = endOfMonth(monthStart);
-      
+
       // Get all weeks in this month
       const weeksInMonth = eachWeekOfInterval({ start: monthStart, end: monthEnd });
-      
+
       // Calculate total debt for the month
       let totalDebt = 0;
       monthExpenses.forEach(expense => {
@@ -60,11 +63,11 @@ export function DebtAnalytics({ expenses, users, currentUserId }: DebtAnalyticsP
 
       // Calculate weekly averages
       const weeklyDebts: number[] = [];
-      
+
       weeksInMonth.forEach((weekStart, index) => {
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekEnd.getDate() + 6); // End of week
-        
+
         let weekDebt = 0;
         monthExpenses.forEach(expense => {
           const expenseDate = expense.timestamp.toDate();
@@ -81,9 +84,7 @@ export function DebtAnalytics({ expenses, users, currentUserId }: DebtAnalyticsP
       });
 
       // Calculate average weekly debt
-      const weeklyAvg = weeklyDebts.length > 0 
-        ? weeklyDebts.reduce((sum, debt) => sum + debt, 0) / weeklyDebts.length 
-        : 0;
+      const weeklyAvg = totalDebt / 4;
 
       monthlyData.push({
         month: monthKey,
@@ -132,30 +133,30 @@ export function DebtAnalytics({ expenses, users, currentUserId }: DebtAnalyticsP
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
-              <Tooltip 
+              <Tooltip
                 formatter={(value: number) => [`Rs. ${value.toFixed(2)}`, '']}
                 labelFormatter={(label) => `Month: ${label}`}
               />
               <Legend />
-              <Line 
-                type="monotone" 
-                dataKey="totalDebt" 
-                stroke="#3b82f6" 
+              <Line
+                type="monotone"
+                dataKey="totalDebt"
+                stroke="#3b82f6"
                 strokeWidth={2}
                 name="Total Monthly Debt"
                 dot={{ fill: '#3b82f6', r: 4 }}
               />
-              <Line 
-                type="monotone" 
-                dataKey="weeklyAvg" 
-                stroke="#10b981" 
+              <Line
+                type="monotone"
+                dataKey="weeklyAvg"
+                stroke="#10b981"
                 strokeWidth={2}
                 name="Weekly Average"
                 dot={{ fill: '#10b981', r: 4 }}
               />
             </LineChart>
           </ResponsiveContainer>
-          
+
           <div className="grid grid-cols-2 gap-4 mt-4">
             <div className="text-center p-3 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-600 font-medium">Current Month Debt</p>

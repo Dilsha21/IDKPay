@@ -1,9 +1,10 @@
-'use server';
+// This file is used on the client side with the Firebase Client SDK.
+// Next.js Server Actions are not utilized here to avoid module bundling conflicts.
 
 import { z } from 'zod';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, UserCredential, Auth } from 'firebase/auth';
-import { doc, setDoc, getDoc, runTransaction, serverTimestamp, collection, getDocs, query, where, updateDoc, arrayUnion } from 'firebase/firestore';
-import type { Balance } from '@/lib/types';
+import { doc, setDoc, getDoc, runTransaction, serverTimestamp, collection, getDocs, query, where, updateDoc, arrayUnion, addDoc, deleteDoc, orderBy, Timestamp } from 'firebase/firestore';
+import type { Balance, Expense } from '@/lib/types';
 import { PlaceHolderImages, DEFAULT_PROFILE_PICTURE } from '@/lib/placeholder-images';
 import { auth, db } from '@/lib/firebase';
 
@@ -60,7 +61,7 @@ export async function signUp(values: any) {
     // Check if user document already exists (for users who were removed but still have auth)
     const userDocRef = doc(db, 'users', user.uid);
     const userDoc = await getDoc(userDocRef);
-    
+
     if (userDoc.exists()) {
       console.log('User document already exists, updating...');
       // User document exists, update it instead of creating new
@@ -94,7 +95,7 @@ export async function signUp(values: any) {
         // Join existing group and update user
         updateData.groupId = values.groupId;
         updateData.role = 'member';
-        
+
         // Add user to group's memberIds array
         await updateDoc(doc(db, 'groups', values.groupId), {
           memberIds: arrayUnion(user.uid)
@@ -103,7 +104,7 @@ export async function signUp(values: any) {
 
       await updateDoc(userDocRef, updateData);
       console.log('User document updated successfully');
-      
+
     } else {
       console.log('Creating new user document...');
       // User document doesn't exist, create new one (normal flow)
@@ -135,10 +136,10 @@ export async function signUp(values: any) {
           collegeYear: values.collegeYear,
           createdAt: serverTimestamp(),
         };
-        
+
         await setDoc(doc(db, 'users', user.uid), userData);
         console.log('Group created successfully');
-        
+
       } else if (values.mode === 'join') {
         // Join existing group
         const userData = {
@@ -157,14 +158,14 @@ export async function signUp(values: any) {
         };
 
         await setDoc(doc(db, 'users', user.uid), userData);
-        
+
         // Add user to group's memberIds array
         await updateDoc(doc(db, 'groups', values.groupId), {
           memberIds: arrayUnion(user.uid)
         });
-        
+
         console.log('User joined group successfully');
-        
+
       } else {
         // Default signup (backward compatibility)
         const userData = {
@@ -178,16 +179,16 @@ export async function signUp(values: any) {
         await setDoc(doc(db, 'users', user.uid), userData);
       }
     }
-    
+
     console.log('User signed up successfully');
     return { success: true, userId: user.uid };
-    
+
   } catch (error: any) {
     console.error('Signup error:', error);
-    
+
     // Handle specific Firebase Auth errors
     let errorMessage = 'An error occurred during signup. Please try again.';
-    
+
     switch (error.code) {
       case 'auth/email-already-in-use':
         // Check if this is a user who was removed but still has auth
@@ -195,16 +196,16 @@ export async function signUp(values: any) {
           // Try to sign in with the provided credentials to get the user
           const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
           const user = userCredential.user;
-          
+
           // Check if user document exists
           const userDocRef = doc(db, 'users', user.uid);
           const userDoc = await getDoc(userDocRef);
-          
+
           if (!userDoc.exists()) {
             // User was removed (no user document), allow them to continue signup
             // Delete the auth user and recreate
             await user.delete();
-            
+
             // Now retry the signup
             return await signUp(values);
           } else {
@@ -229,7 +230,7 @@ export async function signUp(values: any) {
       default:
         errorMessage = error.message || 'An unknown error occurred.';
     }
-    
+
     return { error: errorMessage };
   }
 }
@@ -301,10 +302,10 @@ export async function addExpense(values: z.infer<typeof addExpenseSchema>) {
       balanceRefs.forEach(({ ref, userIDs, participantId }, index) => {
         const balanceDoc = balanceDocs[index];
         const currentAmount = balanceDoc.exists() ? (balanceDoc.data() as any).amount : 0;
-        
+
         // Positive amount means userIDs[1] owes userIDs[0]
         const amountChange = values.payerId === userIDs[0] ? perPersonShare : -perPersonShare;
-        
+
         const newAmount = currentAmount + amountChange;
         console.log('Balance update for', participantId, ':', { currentAmount, amountChange, newAmount });
 
@@ -316,6 +317,22 @@ export async function addExpense(values: z.infer<typeof addExpenseSchema>) {
         }, { merge: true });
       });
     });
+
+    // Notify shared users (except the payer)
+    const participants = values.sharedWith.filter(id => id !== values.payerId);
+    // Get payer's name
+    const payerDoc = await getDoc(doc(db, 'users', values.payerId));
+    const payerName = payerDoc.exists() ? (payerDoc.data() as any).name : 'Someone';
+
+    for (const participantId of participants) {
+      await createNotification({
+        userId: participantId,
+        type: 'expense-added',
+        title: 'New Expense Added',
+        message: `${payerName} added "${values.description}" — Rs. ${values.amount} (your share: Rs. ${perPersonShare.toFixed(2)})`,
+        addedBy: values.payerId,
+      });
+    }
 
     console.log('Transaction completed successfully');
     return { success: true };
@@ -357,20 +374,20 @@ export async function markAsPaid(values: z.infer<typeof markAsPaidSchema>) {
       // Negative balance means userIDs[0] owes userIDs[1]
       // Payment should always move the balance toward zero
       let newBalance: number;
-      
+
       if (currentBalance > 0) {
         // userIDs[1] owes userIDs[0]
         // If fromUserId is userIDs[1] (payer), reduce positive balance
         // If fromUserId is userIDs[0] (receiver), this shouldn't happen in normal flow
-        newBalance = values.fromUserId === userIDs[1] 
-          ? currentBalance - values.amount 
+        newBalance = values.fromUserId === userIDs[1]
+          ? currentBalance - values.amount
           : currentBalance + values.amount;
       } else {
         // userIDs[0] owes userIDs[1]
         // If fromUserId is userIDs[0] (payer), increase negative balance toward zero
         // If fromUserId is userIDs[1] (receiver), this shouldn't happen in normal flow
-        newBalance = values.fromUserId === userIDs[0] 
-          ? currentBalance + values.amount 
+        newBalance = values.fromUserId === userIDs[0]
+          ? currentBalance + values.amount
           : currentBalance - values.amount;
       }
 
@@ -395,6 +412,18 @@ export async function markAsPaid(values: z.infer<typeof markAsPaidSchema>) {
       });
     });
 
+    // Notify the debtor (fromUserId) that their debt was marked as paid
+    const markerDoc = await getDoc(doc(db, 'users', values.toUserId));
+    const markerName = markerDoc.exists() ? (markerDoc.data() as any).name : 'Someone';
+
+    await createNotification({
+      userId: values.fromUserId,
+      type: 'debt-paid',
+      title: 'Debt Marked as Paid',
+      message: `${markerName} marked your debt of Rs. ${values.amount.toFixed(2)} as paid`,
+      addedBy: values.toUserId,
+    });
+
     console.log('Payment recorded successfully');
     return { success: true };
   } catch (error: any) {
@@ -409,18 +438,28 @@ const updateProfileSchema = z.object({
   uid: z.string(),
   name: z.string().min(1, 'Name is required'),
   avatarUrl: z.string().url().optional().nullable(),
+  contactInfo: z.string().optional(),
+  address: z.string().optional(),
+  collegeName: z.string().optional(),
+  department: z.string().optional(),
+  collegeYear: z.string().optional(),
 });
 
 export async function updateProfile(values: z.infer<typeof updateProfileSchema>) {
   try {
     console.log('Updating profile for user:', values.uid);
-    
+
     const userDocRef = doc(db, 'users', values.uid);
-    
+
     // Update the user document
     await setDoc(userDocRef, {
       name: values.name,
       avatarUrl: values.avatarUrl || null,
+      contactInfo: values.contactInfo || null,
+      address: values.address || null,
+      collegeName: values.collegeName || null,
+      department: values.department || null,
+      collegeYear: values.collegeYear || null,
       updatedAt: serverTimestamp(),
     }, { merge: true });
 
@@ -444,15 +483,15 @@ const updateExpenseSchema = z.object({
 export async function updateExpense(values: z.infer<typeof updateExpenseSchema>) {
   try {
     console.log('Updating expense:', values);
-    
+
     const expenseRef = doc(db, 'expenses', values.expenseId);
-    
+
     // Get the original expense to calculate balance changes
     const expenseDoc = await getDoc(expenseRef);
     if (!expenseDoc.exists()) {
       throw new Error('Expense not found');
     }
-    
+
     const originalExpense = expenseDoc.data() as any;
     const originalPerPersonShare = originalExpense.amount / originalExpense.sharedWith.length;
     const newPerPersonShare = values.amount / values.sharedWith.length;
@@ -461,11 +500,11 @@ export async function updateExpense(values: z.infer<typeof updateExpenseSchema>)
       // First, read all balance documents for both original and new participants
       const originalParticipants = originalExpense.sharedWith.filter((id: string) => id !== originalExpense.payerId);
       const newParticipants = values.sharedWith.filter(id => id !== originalExpense.payerId);
-      
+
       // Combine all unique participants
       const allParticipants = Array.from(new Set([...originalParticipants, ...newParticipants]));
       const balanceRefs: { ref: any; userIDs: string[]; participantId: string }[] = [];
-      
+
       for (const participantId of allParticipants) {
         const userIDs = [originalExpense.payerId, participantId].sort();
         const balanceDocId = userIDs.join('_');
@@ -494,7 +533,7 @@ export async function updateExpense(values: z.infer<typeof updateExpenseSchema>)
         const balanceRefIndex = balanceRefs.findIndex(({ participantId }) => participantId === participantId);
         const balanceDoc = balanceDocs[balanceRefIndex];
         const currentAmount = balanceDoc.exists() ? (balanceDoc.data() as any).amount : 0;
-        
+
         // Reverse the original balance change
         const amountChange = originalExpense.payerId === userIDs[0] ? -originalPerPersonShare : originalPerPersonShare;
         const revertedAmount = currentAmount + amountChange;
@@ -513,7 +552,7 @@ export async function updateExpense(values: z.infer<typeof updateExpenseSchema>)
         const balanceRefIndex = balanceRefs.findIndex(({ participantId }) => participantId === participantId);
         const balanceDoc = balanceDocs[balanceRefIndex];
         const currentAmount = balanceDoc.exists() ? (balanceDoc.data() as any).amount : 0;
-        
+
         // Apply the new balance change
         const amountChange = originalExpense.payerId === userIDs[0] ? newPerPersonShare : -newPerPersonShare;
         const newAmount = currentAmount + amountChange;
@@ -544,15 +583,16 @@ const deleteExpenseSchema = z.object({
 export async function deleteExpense(values: z.infer<typeof deleteExpenseSchema>) {
   try {
     console.log('Deleting expense:', values.expenseId);
-    
+
     const expenseRef = doc(db, 'expenses', values.expenseId);
-    
+
     // Get the expense to calculate balance reversions
     const expenseDoc = await getDoc(expenseRef);
     if (!expenseDoc.exists()) {
-      throw new Error('Expense not found');
+      console.warn(`Expense with ID ${values.expenseId} not found. It may have already been deleted.`);
+      return { success: true, message: 'Expense not found, assuming already deleted' };
     }
-    
+
     const expense = expenseDoc.data() as any;
     const perPersonShare = expense.amount / expense.sharedWith.length;
 
@@ -560,7 +600,7 @@ export async function deleteExpense(values: z.infer<typeof deleteExpenseSchema>)
       // First, read all balance documents
       const participants = expense.sharedWith.filter((id: string) => id !== expense.payerId);
       const balanceRefs: { ref: any; userIDs: string[]; participantId: string }[] = [];
-      
+
       for (const participantId of participants) {
         const userIDs = [expense.payerId, participantId].sort();
         const balanceDocId = userIDs.join('_');
@@ -581,7 +621,7 @@ export async function deleteExpense(values: z.infer<typeof deleteExpenseSchema>)
       balanceRefs.forEach(({ ref, userIDs, participantId }, index) => {
         const balanceDoc = balanceDocs[index];
         const currentAmount = balanceDoc.exists() ? (balanceDoc.data() as any).amount : 0;
-        
+
         // Reverse the original balance change
         const amountChange = expense.payerId === userIDs[0] ? -perPersonShare : perPersonShare;
         const revertedAmount = currentAmount + amountChange;
@@ -608,41 +648,41 @@ export async function deleteExpense(values: z.infer<typeof deleteExpenseSchema>)
 export async function migrateExistingUsers() {
   try {
     console.log('Starting migration for existing users...');
-    
+
     // Get all users
     const usersSnapshot = await getDocs(collection(db, 'users'));
     const users = usersSnapshot.docs;
-    
+
     // Get all groups
     const groupsSnapshot = await getDocs(collection(db, 'groups'));
     const groups = groupsSnapshot.docs;
-    
+
     console.log(`Found ${users.length} users and ${groups.length} groups`);
-    
+
     // Create a map of group creators and initialize memberIds
     const groupCreators: { [key: string]: string } = {};
     const groupMemberIds: { [key: string]: string[] } = {};
-    
+
     groups.forEach(groupDoc => {
       const groupData = groupDoc.data() as any;
       const groupId = groupDoc.id;
       groupCreators[groupData.createdBy] = groupId;
       groupMemberIds[groupId] = groupData.memberIds || [];
     });
-    
+
     // Update users who are group creators
     let updatedCount = 0;
     for (const userDoc of users) {
       const userData = userDoc.data() as any;
       const userId = userDoc.id;
-      
+
       // Check if this user created a group
       if (groupCreators[userId] && !userData.groupId) {
         await updateDoc(doc(db, 'users', userId), {
           groupId: groupCreators[userId],
           role: 'admin'
         });
-        
+
         // Add creator to group memberIds if not already there
         const groupId = groupCreators[userId];
         if (!groupMemberIds[groupId].includes(userId)) {
@@ -651,11 +691,11 @@ export async function migrateExistingUsers() {
           });
           groupMemberIds[groupId].push(userId);
         }
-        
+
         console.log(`Updated user ${userId} with groupId ${groupId} and role admin`);
         updatedCount++;
       }
-      
+
       // Also add users who have groupId but are not in memberIds
       if (userData.groupId && groupMemberIds[userData.groupId]) {
         if (!groupMemberIds[userData.groupId].includes(userId)) {
@@ -667,10 +707,10 @@ export async function migrateExistingUsers() {
         }
       }
     }
-    
+
     console.log(`Migration completed. Updated ${updatedCount} users.`);
     return { success: true, updatedCount };
-    
+
   } catch (error: any) {
     console.error('Migration failed:', error);
     return { error: `Migration failed: ${error.message}` };
@@ -745,15 +785,15 @@ export async function checkEmailInvitation(email: string) {
   try {
     const groupsQuery = query(collection(db, 'groups'), where('memberEmails', 'array-contains', email));
     const groupsSnapshot = await getDocs(groupsQuery);
-    
+
     if (!groupsSnapshot.empty) {
       const groupDoc = groupsSnapshot.docs[0];
       const groupData = groupDoc.data() as any;
-      
+
       // Get creator info
       const creatorDoc = await getDoc(doc(db, 'users', groupData.createdBy));
       const creatorData = creatorDoc.exists() ? creatorDoc.data() : null;
-      
+
       return {
         groupInfo: {
           id: groupDoc.id,
@@ -762,7 +802,7 @@ export async function checkEmailInvitation(email: string) {
         }
       };
     }
-    
+
     return { groupInfo: null };
   } catch (error: any) {
     console.error('Error checking email invitation:', error);
@@ -773,9 +813,9 @@ export async function checkEmailInvitation(email: string) {
 export async function recordPartialPayment(values: any) {
   try {
     console.log('Recording partial payment:', values);
-    
+
     const { fromUserId, toUserId, amount } = values;
-    
+
     await runTransaction(db, async (transaction) => {
       // Create balance document ID (sorted user IDs)
       const userIDs = [fromUserId, toUserId].sort();
@@ -796,17 +836,17 @@ export async function recordPartialPayment(values: any) {
       // Negative balance means userIDs[0] owes userIDs[1]
       // Payment should always move the balance toward zero
       let newBalance: number;
-      
+
       if (currentBalance > 0) {
         // userIDs[1] owes userIDs[0]
         // If fromUserId is userIDs[1] (payer), reduce positive balance
-        newBalance = fromUserId === userIDs[1] 
+        newBalance = fromUserId === userIDs[1]
           ? Math.max(0, currentBalance - amount)  // Don't go below zero
           : currentBalance + amount;
       } else {
         // userIDs[0] owes userIDs[1]
         // If fromUserId is userIDs[0] (payer), increase negative balance toward zero
-        newBalance = fromUserId === userIDs[0] 
+        newBalance = fromUserId === userIDs[0]
           ? Math.min(0, currentBalance + amount)  // Don't go above zero
           : currentBalance - amount;
       }
@@ -831,11 +871,274 @@ export async function recordPartialPayment(values: any) {
         timestamp: serverTimestamp(),
       });
     });
-    
+
+    // Notify the debtor that a partial payment was recorded
+    const markerDoc = await getDoc(doc(db, 'users', toUserId));
+    const markerName = markerDoc.exists() ? (markerDoc.data() as any).name : 'Someone';
+
+    await createNotification({
+      userId: fromUserId,
+      type: 'debt-partially-paid',
+      title: 'Partial Payment Recorded',
+      message: `${markerName} recorded a partial payment of Rs. ${amount.toFixed(2)} from you`,
+      addedBy: toUserId,
+    });
+
     console.log('Partial payment recorded successfully');
     return { success: true };
   } catch (error: any) {
-    console.error('Error recording partial payment:', error);
-    return { error: `Failed to record partial payment: ${error.message}` };
+    console.error('Partial payment failed:', error);
+    return { error: `Failed to record partial payment: ${(error as Error).message}` };
   }
+}
+
+export async function markThingAsBought(thingId: string, userId: string) {
+  const thingRef = doc(db, 'things-to-buy', thingId);
+
+  // Get thing data before updating for notification
+  const thingDoc = await getDoc(thingRef);
+  const thingData = thingDoc.exists() ? (thingDoc.data() as any) : null;
+
+  await updateDoc(thingRef, {
+    amountNeeded: 0,
+    status: 'bought',
+    boughtBy: userId,
+    boughtAt: serverTimestamp(),
+  });
+
+  // Notify adder + shared users except the buyer
+  if (thingData) {
+    const buyerDoc = await getDoc(doc(db, 'users', userId));
+    const buyerName = buyerDoc.exists() ? (buyerDoc.data() as any).name : 'Someone';
+
+    // Notify all group members except the buyer
+    const groupDoc = await getDoc(doc(db, 'groups', thingData.groupId));
+    const groupData = groupDoc.exists() ? groupDoc.data() as any : null;
+    const allMemberIds = groupData?.memberIds || [];
+
+    const usersToNotify = Array.from(new Set([thingData.addedBy, ...(thingData.sharedWith || []), ...allMemberIds]))
+      .filter((uid: string) => uid !== userId);
+
+    console.log('Users to notify for thing bought:', usersToNotify);
+    for (const uid of usersToNotify) {
+      console.log('Sending notification to:', uid);
+      await createNotification({
+        userId: uid,
+        type: 'thing-bought',
+        title: thingData.name,
+        message: `${buyerName} bought ${thingData.name}`,
+        addedBy: userId,
+        relatedThingId: thingId,
+      });
+    }
+  }
+}
+
+export async function deleteThingToBuy(thingId: string) {
+  const thingRef = doc(db, 'things-to-buy', thingId);
+  await deleteDoc(thingRef);
+}
+
+export async function updateThingToBuy(
+  thingId: string,
+  updates: Partial<{
+    name: string;
+    amountNeeded: number;
+    description: string;
+    sharedWith: string[];
+  }>
+) {
+  const thingRef = doc(db, 'things-to-buy', thingId);
+  await updateDoc(thingRef, updates);
+}
+
+export async function addThingToBuy(thingData: {
+  name: string;
+  amountNeeded: number;
+  description?: string;
+  addedBy: string;
+  groupId: string;
+  sharedWith: string[];
+  status?: string;
+}) {
+  try {
+    const adderDoc = await getDoc(doc(db, 'users', thingData.addedBy));
+    const adderName = adderDoc.exists() ? (adderDoc.data() as any).name : 'Someone';
+
+    const thingRef = await addDoc(collection(db, 'things-to-buy'), {
+      name: thingData.name,
+      amountNeeded: thingData.amountNeeded,
+      description: thingData.description,
+      addedBy: thingData.addedBy,
+      addedByName: adderName,
+      groupId: thingData.groupId,
+      sharedWith: thingData.sharedWith,
+      status: 'pending',
+      timestamp: serverTimestamp(),
+    });
+
+    // Notify shared users (except the adder)
+    // Notify all group members except the adder
+    const groupDoc = await getDoc(doc(db, 'groups', thingData.groupId));
+    const groupData = groupDoc.exists() ? groupDoc.data() as any : null;
+    const allMemberIds = groupData?.memberIds || [];
+
+    const usersToNotify = Array.from(new Set([...(thingData.sharedWith || []), ...allMemberIds]))
+      .filter(uid => uid !== thingData.addedBy);
+
+    console.log('Users to notify for thing added:', usersToNotify);
+    for (const uid of usersToNotify) {
+      console.log('Sending notification to:', uid);
+      await createNotification({
+        userId: uid,
+        type: 'thing-added',
+        title: thingData.name,
+        message: `${adderName} added ${thingData.amountNeeded} ${thingData.name} to the list`,
+        addedBy: thingData.addedBy,
+        relatedThingId: thingRef.id,
+      });
+    }
+
+    console.log('Thing to buy added successfully');
+    return { success: true, id: thingRef.id };
+  } catch (error: any) {
+    console.error('Error adding thing to buy:', error);
+    return { error: `Failed to add thing: ${(error as Error).message}` };
+  }
+}
+
+export async function partiallyBuyThing(
+  thingId: string,
+  amountBought: number,
+  currentAmountNeeded: number,
+  userId: string
+) {
+  try {
+    const thingRef = doc(db, 'things-to-buy', thingId);
+    const newAmountNeeded = Math.max(0, currentAmountNeeded - amountBought);
+
+    await updateDoc(thingRef, {
+      amountNeeded: newAmountNeeded,
+      status: newAmountNeeded === 0 ? 'bought' : 'partially-bought',
+      partiallyBoughtAmount: amountBought,
+      boughtByUsers: arrayUnion({
+        userId,
+        amountBought,
+        boughtAt: Timestamp.now(),
+      }),
+      lastUpdated: serverTimestamp(),
+    });
+
+    // Get thing data for notification
+    const thingDoc = await getDoc(thingRef);
+    const thingData = thingDoc.exists() ? (thingDoc.data() as any) : null;
+
+    if (thingData) {
+      // Get buyer's name
+      const buyerDoc = await getDoc(doc(db, 'users', userId));
+      const buyerName = buyerDoc.exists() ? (buyerDoc.data() as any).name : 'Someone';
+
+      // Notify adder + shared users except the buyer
+      // Notify all group members except the buyer
+      const groupDoc = await getDoc(doc(db, 'groups', thingData.groupId));
+      const groupData = groupDoc.exists() ? groupDoc.data() as any : null;
+      const allMemberIds = groupData?.memberIds || [];
+
+      const usersToNotify = Array.from(new Set([thingData.addedBy, ...(thingData.sharedWith || []), ...allMemberIds]))
+        .filter((uid: string) => uid !== userId);
+
+      console.log('Users to notify for thing partially bought:', usersToNotify);
+      for (const uid of usersToNotify) {
+        console.log('Sending notification to:', uid);
+        await createNotification({
+          userId: uid,
+          type: 'thing-partially-bought',
+          title: thingData.name,
+          message: `${buyerName} bought ${amountBought} ${thingData.name} — ${newAmountNeeded} remaining`,
+          addedBy: userId,
+          relatedThingId: thingId,
+        });
+      }
+    }
+
+    console.log('Thing partially bought successfully');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error partially buying thing:', error);
+    return { error: `Failed to partially buy thing: ${(error as Error).message}` };
+  }
+}
+
+export async function createNotification(notificationData: {
+  userId: string;
+  type: 'expense-added' | 'debt-paid' | 'debt-partially-paid' | 'thing-added' | 'thing-bought' | 'thing-partially-bought' | 'weekly-summary';
+  title: string;
+  message: string;
+  addedBy?: string;
+  relatedExpenseId?: string;
+  relatedThingId?: string;
+  metadata?: Record<string, any>;
+}) {
+  console.log('Creating notification for user:', notificationData.userId, 'Type:', notificationData.type);
+  const notificationRef = await addDoc(collection(db, 'notifications'), {
+    userId: notificationData.userId,
+    type: notificationData.type,
+    title: notificationData.title,
+    message: notificationData.message,
+    read: false,
+    timestamp: serverTimestamp(),
+    ...(notificationData.addedBy && { addedBy: notificationData.addedBy }),
+    ...(notificationData.relatedExpenseId && { relatedExpenseId: notificationData.relatedExpenseId }),
+    ...(notificationData.relatedThingId && { relatedThingId: notificationData.relatedThingId }),
+    ...(notificationData.metadata && { metadata: notificationData.metadata }),
+  });
+
+  return { success: true, id: notificationRef.id };
+}
+
+export async function calculateBalances(expenses: Expense[]): Promise<Balance[]> {
+  const balances: Map<string, number> = new Map();
+
+  // Calculate net balance for each user
+  expenses.forEach(expense => {
+    const payerAmount = expense.perPersonShare;
+    const sharedWith = expense.sharedWith;
+
+    // Add amount to payer (they are owed money)
+    const currentPayerBalance = balances.get(expense.payerId) || 0;
+    balances.set(expense.payerId, currentPayerBalance + (payerAmount * sharedWith.length));
+
+    // Subtract amount from each person who shares the expense
+    sharedWith.forEach(userId => {
+      const currentSharedBalance = balances.get(userId) || 0;
+      balances.set(userId, currentSharedBalance - payerAmount);
+    });
+  });
+
+  // Convert to Balance objects
+  const balanceObjects: Balance[] = [];
+  const userIds = Array.from(balances.keys());
+
+  // Create balance pairs
+  for (let i = 0; i < userIds.length; i++) {
+    for (let j = i + 1; j < userIds.length; j++) {
+      const user1 = userIds[i];
+      const user2 = userIds[j];
+      const balance1 = balances.get(user1) || 0;
+      const balance2 = balances.get(user2) || 0;
+
+      // Only create balance entry if there's a non-zero relationship
+      if (Math.abs(balance1 - balance2) > 0.01) {
+        const sortedIds = [user1, user2].sort();
+        balanceObjects.push({
+          id: sortedIds[0] + '_' + sortedIds[1],
+          users: [user1, user2] as [string, string],
+          amount: balance1 - balance2,
+          updatedAt: serverTimestamp() as any
+        });
+      }
+    }
+  }
+
+  return balanceObjects;
 }

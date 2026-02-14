@@ -47,7 +47,7 @@ export function ExpenseList({ expenses, users, currentUserId, onEditExpense, onD
         const sharedWithUsers = expense.sharedWith
           .map(userId => usersMap[userId])
           .filter(Boolean);
-        
+
         return (
           <div key={expense.id} className="p-4 hover:bg-secondary rounded-lg transition-colors">
             <div className="flex items-start justify-between mb-3">
@@ -72,7 +72,7 @@ export function ExpenseList({ expenses, users, currentUserId, onEditExpense, onD
                 <div className="text-right">
                   <p className="font-bold text-lg">Rs. {expense.amount.toFixed(2)}</p>
                   <p className="text-sm text-muted-foreground">
-                    {formatDistanceToNow(expense.timestamp.toDate(), { addSuffix: true })}
+                    {expense.timestamp ? formatDistanceToNow(expense.timestamp.toDate(), { addSuffix: true }) : 'just now'}
                   </p>
                 </div>
                 {expense.payerId === currentUserId && (onEditExpense || onDeleteExpense) && (
@@ -90,7 +90,7 @@ export function ExpenseList({ expenses, users, currentUserId, onEditExpense, onD
                         </DropdownMenuItem>
                       )}
                       {onDeleteExpense && (
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           onClick={() => onDeleteExpense(expense.id)}
                           className="text-destructive"
                         >
@@ -103,7 +103,7 @@ export function ExpenseList({ expenses, users, currentUserId, onEditExpense, onD
                 )}
               </div>
             </div>
-            
+
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center space-x-2">
                 <span className="text-muted-foreground">Shared with:</span>
@@ -127,7 +127,7 @@ export function ExpenseList({ expenses, users, currentUserId, onEditExpense, onD
                 </span>
               </div>
               <div className="text-muted-foreground">
-                {format(expense.timestamp.toDate(), 'MMM d, yyyy • h:mm a')}
+                {expense.timestamp ? format(expense.timestamp.toDate(), 'MMM d, yyyy • h:mm a') : 'just now'}
               </div>
             </div>
           </div>
@@ -138,37 +138,37 @@ export function ExpenseList({ expenses, users, currentUserId, onEditExpense, onD
 }
 
 ExpenseList.Skeleton = function ExpenseListSkeleton() {
-    return (
-        <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
-                <div key={i} className="p-4">
-                    <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center space-x-3">
-                            <Skeleton className="h-10 w-10 rounded-full" />
-                            <div className="space-y-2">
-                                <Skeleton className="h-4 w-32" />
-                                <Skeleton className="h-3 w-24" />
-                            </div>
-                        </div>
-                        <div className="space-y-2 text-right">
-                            <Skeleton className="h-5 w-16" />
-                            <Skeleton className="h-3 w-20" />
-                        </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                            <Skeleton className="h-4 w-16" />
-                            <div className="flex -space-x-2">
-                                {[...Array(3)].map((_, j) => (
-                                    <Skeleton key={j} className="h-6 w-6 rounded-full border-2 border-background" />
-                                ))}
-                            </div>
-                            <Skeleton className="h-3 w-32" />
-                        </div>
-                        <Skeleton className="h-3 w-24" />
-                    </div>
-                </div>
-            ))}
+  return (
+    <div className="space-y-4">
+      {[...Array(3)].map((_, i) => (
+        <div key={i} className="p-4">
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex items-center space-x-3">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </div>
+            <div className="space-y-2 text-right">
+              <Skeleton className="h-5 w-16" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Skeleton className="h-4 w-16" />
+              <div className="flex -space-x-2">
+                {[...Array(3)].map((_, j) => (
+                  <Skeleton key={j} className="h-6 w-6 rounded-full border-2 border-background" />
+                ))}
+              </div>
+              <Skeleton className="h-3 w-32" />
+            </div>
+            <Skeleton className="h-3 w-24" />
+          </div>
         </div>
-    )
+      ))}
+    </div>
+  )
 }

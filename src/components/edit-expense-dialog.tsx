@@ -42,12 +42,12 @@ const formSchema = z.object({
   }),
 });
 
-export function EditExpenseDialog({ 
-  expense, 
-  users, 
-  currentUser, 
-  open, 
-  onOpenChange 
+export function EditExpenseDialog({
+  expense,
+  users,
+  currentUser,
+  open,
+  onOpenChange
 }: EditExpenseDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,7 +76,7 @@ export function EditExpenseDialog({
     if (!expense) return;
 
     setIsSubmitting(true);
-    
+
     try {
       const result = await updateExpense({
         expenseId: expense.id,
@@ -153,39 +153,75 @@ export function EditExpenseDialog({
                     </FormDescription>
                   </div>
                   <div className="space-y-2">
-                    {users.map((user) => (
-                      <FormField
-                        key={user.uid}
-                        control={form.control}
-                        name="sharedWith"
-                        render={({ field }) => {
-                          return (
-                            <FormItem
-                              key={user.uid}
-                              className="flex flex-row items-center space-x-3 space-y-0 p-2 rounded-md hover:bg-secondary"
-                            >
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value?.includes(user.uid)}
-                                  onCheckedChange={(checked) => {
-                                    return checked
-                                      ? field.onChange([...field.value, user.uid])
-                                      : field.onChange(
+                    {/* Always show current user */}
+                    <FormField
+                      key={currentUser.uid}
+                      control={form.control}
+                      name="sharedWith"
+                      render={({ field }) => {
+                        return (
+                          <FormItem
+                            key={currentUser.uid}
+                            className="flex flex-row items-center space-x-3 space-y-0 p-2 rounded-md bg-primary/10 border border-primary/20"
+                          >
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value?.includes(currentUser.uid)}
+                                onCheckedChange={(checked) => {
+                                  return checked
+                                    ? field.onChange([...field.value, currentUser.uid])
+                                    : field.onChange(
+                                      field.value?.filter(
+                                        (value) => value !== currentUser.uid
+                                      )
+                                    );
+                                }}
+                              />
+                            </FormControl>
+                            <FormLabel className="font-normal w-full cursor-pointer">
+                              {currentUser.name} (You)
+                            </FormLabel>
+                          </FormItem>
+                        );
+                      }}
+                    />
+
+                    {/* Show other group members */}
+                    {users
+                      .filter(user => user.groupId === currentUser.groupId && user.uid !== currentUser.uid)
+                      .map((user) => (
+                        <FormField
+                          key={user.uid}
+                          control={form.control}
+                          name="sharedWith"
+                          render={({ field }) => {
+                            return (
+                              <FormItem
+                                key={user.uid}
+                                className="flex flex-row items-center space-x-3 space-y-0 p-2 rounded-md hover:bg-secondary"
+                              >
+                                <FormControl>
+                                  <Checkbox
+                                    checked={field.value?.includes(user.uid)}
+                                    onCheckedChange={(checked) => {
+                                      return checked
+                                        ? field.onChange([...field.value, user.uid])
+                                        : field.onChange(
                                           field.value?.filter(
                                             (value) => value !== user.uid
                                           )
                                         );
-                                  }}
-                                />
-                              </FormControl>
-                              <FormLabel className="font-normal w-full cursor-pointer">
-                                {user.name} {user.uid === currentUser.uid && '(You)'}
-                              </FormLabel>
-                            </FormItem>
-                          );
-                        }}
-                      />
-                    ))}
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormLabel className="font-normal w-full cursor-pointer">
+                                  {user.name}
+                                </FormLabel>
+                              </FormItem>
+                            );
+                          }}
+                        />
+                      ))}
                   </div>
                   <FormMessage />
                 </FormItem>

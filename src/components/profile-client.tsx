@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { updateProfile } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
@@ -17,16 +17,33 @@ export function ProfileClient() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [name, setName] = useState(user?.name || '');
+  const [contactInfo, setContactInfo] = useState(user?.contactInfo || '');
+  const [address, setAddress] = useState(user?.address || '');
+  const [collegeName, setCollegeName] = useState(user?.collegeName || '');
+  const [department, setDepartment] = useState(user?.department || '');
+  const [collegeYear, setCollegeYear] = useState(user?.collegeYear || '');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const PROFESSIONAL_DEFAULT =
-  'https://static.vecteezy.com/system/resources/previews/020/765/399/non_2x/default-profile-account-unknown-icon-black-silhouette-free-vector.jpg';
+  // Sync state with user data when it loads
+  useEffect(() => {
+    if (user) {
+      setName(user.name || '');
+      setContactInfo(user.contactInfo || '');
+      setAddress(user.address || '');
+      setCollegeName(user.collegeName || '');
+      setDepartment(user.department || '');
+      setCollegeYear(user.collegeYear || '');
+    }
+  }, [user]);
 
-const [avatarUrl, setAvatarUrl] = useState(
-  user?.avatarUrl && user.avatarUrl !== 'default'
-    ? user.avatarUrl
-    : PROFESSIONAL_DEFAULT
-);
+  const PROFESSIONAL_DEFAULT =
+    'https://static.vecteezy.com/system/resources/previews/020/765/399/non_2x/default-profile-account-unknown-icon-black-silhouette-free-vector.jpg';
+
+  const [avatarUrl, setAvatarUrl] = useState(
+    user?.avatarUrl && user.avatarUrl !== 'default'
+      ? user.avatarUrl
+      : PROFESSIONAL_DEFAULT
+  );
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -59,11 +76,11 @@ const [avatarUrl, setAvatarUrl] = useState(
           // Create canvas for compression
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
-          
+
           // Calculate new dimensions (max 400x400)
           let { width, height } = img;
           const maxSize = 400;
-          
+
           if (width > height) {
             if (width > maxSize) {
               height *= maxSize / width;
@@ -75,16 +92,16 @@ const [avatarUrl, setAvatarUrl] = useState(
               height = maxSize;
             }
           }
-          
+
           canvas.width = width;
           canvas.height = height;
-          
+
           // Draw and compress image
           ctx?.drawImage(img, 0, 0, width, height);
-          
+
           // Convert to compressed base64 (quality 0.7)
           const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
-          
+
           // Check if compressed image is still too large (should be much smaller now)
           const compressedSize = Math.round(compressedDataUrl.length * 0.75); // Approximate size
           if (compressedSize > 500000) { // 500KB limit
@@ -95,14 +112,14 @@ const [avatarUrl, setAvatarUrl] = useState(
             });
             return;
           }
-          
+
           setAvatarUrl(compressedDataUrl);
           toast({
             title: 'Image uploaded',
             description: 'Your profile picture has been compressed and updated.',
           });
         };
-        
+
         img.onerror = () => {
           toast({
             title: 'Upload failed',
@@ -110,10 +127,10 @@ const [avatarUrl, setAvatarUrl] = useState(
             variant: 'destructive',
           });
         };
-        
+
         img.src = e.target?.result as string;
       };
-      
+
       reader.onerror = () => {
         toast({
           title: 'Upload failed',
@@ -121,7 +138,7 @@ const [avatarUrl, setAvatarUrl] = useState(
           variant: 'destructive',
         });
       };
-      
+
       reader.readAsDataURL(file);
     }
   };
@@ -129,16 +146,21 @@ const [avatarUrl, setAvatarUrl] = useState(
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user) return;
 
     setIsSubmitting(true);
-    
+
     try {
       const result = await updateProfile({
         uid: user.uid,
         name,
-        avatarUrl
+        avatarUrl,
+        contactInfo,
+        address,
+        collegeName,
+        department,
+        collegeYear,
       });
 
       if (result.error) {
@@ -191,15 +213,15 @@ const [avatarUrl, setAvatarUrl] = useState(
             {/* Profile Picture Section */}
             <div className="flex items-center space-x-4">
               <Avatar className="h-20 w-20">
-  <AvatarImage
-    src={avatarUrl}
-    alt={name}
-    onError={() => setAvatarUrl(PROFESSIONAL_DEFAULT)}
-  />
-  <AvatarFallback className="text-lg">
-    {name?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()}
-  </AvatarFallback>
-</Avatar>
+                <AvatarImage
+                  src={avatarUrl}
+                  alt={name}
+                  onError={() => setAvatarUrl(PROFESSIONAL_DEFAULT)}
+                />
+                <AvatarFallback className="text-lg">
+                  {name?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
 
               <div className="space-y-2">
                 <Label htmlFor="avatar-url">Profile Picture URL</Label>
@@ -261,27 +283,39 @@ const [avatarUrl, setAvatarUrl] = useState(
               {/* College Information Section */}
               <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
                 <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Academic Information</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium">College</Label>
-                    <div className="text-sm">
-                      {user.collegeName || 'Not specified'}
-                    </div>
+                    <Label htmlFor="collegeName">College</Label>
+                    <Input
+                      id="collegeName"
+                      type="text"
+                      placeholder="College Name"
+                      value={collegeName}
+                      onChange={(e) => setCollegeName(e.target.value)}
+                    />
                   </div>
-                  
+
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium">Department</Label>
-                    <div className="text-sm">
-                      {user.department || 'Not specified'}
-                    </div>
+                    <Label htmlFor="department">Department</Label>
+                    <Input
+                      id="department"
+                      type="text"
+                      placeholder="e.g. Computer Science"
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                    />
                   </div>
-                  
+
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium">Academic Year</Label>
-                    <div className="text-sm">
-                      {user.collegeYear || 'Not specified'}
-                    </div>
+                    <Label htmlFor="collegeYear">Academic Year</Label>
+                    <Input
+                      id="collegeYear"
+                      type="text"
+                      placeholder="e.g. 3rd Year"
+                      value={collegeYear}
+                      onChange={(e) => setCollegeYear(e.target.value)}
+                    />
                   </div>
                 </div>
               </div>
@@ -289,28 +323,44 @@ const [avatarUrl, setAvatarUrl] = useState(
               {/* Contact Information Section */}
               <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
                 <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Contact Information</h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium">Contact Info</Label>
-                    <div className="text-sm">
-                      {user.contactInfo || 'Not specified'}
-                    </div>
+                    <Label htmlFor="contactInfo">Contact Info</Label>
+                    <Input
+                      id="contactInfo"
+                      type="text"
+                      placeholder="Phone or social"
+                      value={contactInfo}
+                      onChange={(e) => setContactInfo(e.target.value)}
+                    />
                   </div>
-                  
+
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium">Address</Label>
-                    <div className="text-sm">
-                      {user.address || 'Not specified'}
-                    </div>
+                    <Label htmlFor="address">Address</Label>
+                    <Input
+                      id="address"
+                      type="text"
+                      placeholder="City, Hostel, or Street"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                    />
                   </div>
                 </div>
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full" 
-                disabled={isSubmitting || (name === user.name && avatarUrl === user.avatarUrl)}
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isSubmitting || (
+                  name === user.name &&
+                  avatarUrl === user.avatarUrl &&
+                  contactInfo === (user.contactInfo || '') &&
+                  address === (user.address || '') &&
+                  collegeName === (user.collegeName || '') &&
+                  department === (user.department || '') &&
+                  collegeYear === (user.collegeYear || '')
+                )}
               >
                 {isSubmitting ? 'Updating...' : 'Update Profile'}
               </Button>

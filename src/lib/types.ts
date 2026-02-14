@@ -32,3 +32,46 @@ export interface Balance {
   amount: number;
   updatedAt: Timestamp;
 }
+
+export interface ThingToBuy {
+  id: string;
+  name: string;
+  amountNeeded: number;
+  description?: string;
+  addedBy: string;
+  addedByName?: string;
+  groupId: string;
+  sharedWith: string[];
+  status: 'pending' | 'partially-bought' | 'bought';
+  timestamp: Timestamp;
+  boughtBy?: string;
+  boughtAt?: Timestamp;
+  partiallyBoughtAmount?: number;
+  boughtByUsers?: Array<{
+    userId: string;
+    amountBought: number;
+    boughtAt: Timestamp;
+  }>;
+  lastUpdated?: Timestamp;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type:
+  | 'expense-added'
+  | 'debt-paid'
+  | 'debt-partially-paid'
+  | 'thing-added'
+  | 'thing-bought'
+  | 'thing-partially-bought'
+  | 'weekly-summary';
+  title: string;
+  message: string;
+  read: boolean;
+  timestamp: Timestamp;
+  relatedThingId?: string;
+  relatedExpenseId?: string;
+  addedBy?: string;
+  metadata?: Record<string, any>;
+}

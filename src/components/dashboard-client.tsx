@@ -29,13 +29,13 @@ export function DashboardClient() {
     () =>
       user
         ? query(
-            collection(db, 'expenses'), 
-            or(
-              where('payerId', '==', user.uid),
-              where('sharedWith', 'array-contains', user.uid)
-            ),
-            orderBy('timestamp', 'desc')
-          )
+          collection(db, 'expenses'),
+          or(
+            where('payerId', '==', user.uid),
+            where('sharedWith', 'array-contains', user.uid)
+          ),
+          orderBy('timestamp', 'desc')
+        )
         : null,
     [user]
   );
@@ -44,7 +44,7 @@ export function DashboardClient() {
       user ? query(collection(db, 'balances'), where('users', 'array-contains', user.uid)) : null,
     [user]
   );
-  
+
   const { docs: users, loading: usersLoading } = useFirestoreQuery<User>(usersQuery);
   const { docs: expenses, loading: expensesLoading } = useFirestoreQuery<Expense>(expensesQuery);
   const { docs: balances, loading: balancesLoading } = useFirestoreQuery<Balance>(balancesQuery);
@@ -76,54 +76,59 @@ export function DashboardClient() {
     <div className="container mx-auto p-4 md:p-8">
       <div className="grid gap-8 md:grid-cols-3">
         <div className="md:col-span-1 space-y-8">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-xl font-bold">Balances</CardTitle>
-                     <Dialog open={isAddExpenseOpen} onOpenChange={setAddExpenseOpen}>
-                        <DialogTrigger asChild>
-                            <Button>
-                                <PlusCircle className="mr-2 h-4 w-4" /> Add Expense
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[425px]">
-                            <DialogHeader>
-                                <DialogTitle>Add a New Expense</DialogTitle>
-                            </DialogHeader>
-                            <AddExpenseForm users={users} currentUser={user} setDialogOpen={setAddExpenseOpen} />
-                        </DialogContent>
-                    </Dialog>
-                </CardHeader>
-                <CardContent>
-                    {loading ? (
-                        <BalanceSummary.Skeleton />
-                    ) : (
-                        <BalanceSummary balances={balances} users={users} currentUser={user} />
-                    )}
-                </CardContent>
-            </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xl font-bold">Balances</CardTitle>
+              <Dialog open={isAddExpenseOpen} onOpenChange={setAddExpenseOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Expense
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Add a New Expense</DialogTitle>
+                  </DialogHeader>
+                  <AddExpenseForm users={users} currentUser={user} setDialogOpen={setAddExpenseOpen} />
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <BalanceSummary.Skeleton />
+              ) : (
+                <BalanceSummary
+                  balances={balances}
+                  users={users}
+                  currentUser={user}
+                  expenses={expenses || []}
+                />
+              )}
+            </CardContent>
+          </Card>
         </div>
         <div className="md:col-span-2">
-           <Card>
-                <CardHeader>
-                    <CardTitle className="text-xl font-bold">Recent Expenses</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {loading ? (
-                        <ExpenseList.Skeleton />
-                    ) : (
-                        <ExpenseList 
-                            expenses={expenses} 
-                            users={users} 
-                            currentUserId={user.uid}
-                            onEditExpense={handleEditExpense}
-                            onDeleteExpense={handleDeleteExpense}
-                        />
-                    )}
-                </CardContent>
-            </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl font-bold">Recent Expenses</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <ExpenseList.Skeleton />
+              ) : (
+                <ExpenseList
+                  expenses={expenses}
+                  users={users}
+                  currentUserId={user.uid}
+                  onEditExpense={handleEditExpense}
+                  onDeleteExpense={handleDeleteExpense}
+                />
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
-      
+
       {user && (
         <EditExpenseDialog
           expense={editingExpense}

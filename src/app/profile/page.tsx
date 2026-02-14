@@ -3,6 +3,7 @@
 import { Header } from '@/components/header';
 import { ProfileClient } from '@/components/profile-client';
 import { DebtAnalytics } from '@/components/debt-analytics';
+import { ExpenseAnalytics } from '@/components/expense-analytics';
 import { useFirestoreQuery } from '@/hooks/use-firestore-query';
 import { query, collection, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -40,13 +41,22 @@ export default function ProfilePage() {
           </div>
           <div>
             {expensesLoading || usersLoading ? (
-              <DebtAnalytics.Skeleton />
+              <div className="space-y-8">
+                <DebtAnalytics.Skeleton />
+                <ExpenseAnalytics.Skeleton />
+              </div>
             ) : (
-              <DebtAnalytics 
-                expenses={expenses} 
-                users={users} 
-                currentUserId={user?.uid || ''}
-              />
+              <div className="space-y-8">
+                <DebtAnalytics
+                  expenses={expenses || []}
+                  users={users || []}
+                  currentUserId={user?.uid || ''}
+                />
+                <ExpenseAnalytics
+                  expenses={expenses || []}
+                  currentUserId={user?.uid || ''}
+                />
+              </div>
             )}
           </div>
         </div>
