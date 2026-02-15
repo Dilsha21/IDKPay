@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Card,
   CardContent,
@@ -26,10 +27,18 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { logIn } from '../actions';
+import { logIn, resetPassword } from '../actions';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Logo } from '@/components/logo';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email.' }),
@@ -40,6 +49,9 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -53,17 +65,24 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      // Use Firebase Auth client SDK directly on the client
-      await signInWithEmailAndPassword(auth, values.email, values.password);
-      
-      toast({
-        title: 'Success!',
-        description: 'You have successfully logged in.',
-      });
+      const result = await logIn(values);
 
-      setIsSubmitting(false);
-      router.replace('/');
-      router.refresh();
+      if (result.success) {
+        toast({
+          title: 'Success!',
+          description: 'You have successfully logged in.',
+        });
+        setIsSubmitting(false);
+        router.replace('/');
+        router.refresh();
+      } else {
+        toast({
+          title: 'Login Failed',
+          description: result.error || 'An error occurred during login.',
+          variant: 'destructive',
+        });
+        setIsSubmitting(false);
+      }
     } catch (error: any) {
       toast({
         title: 'Login Failed',
@@ -74,13 +93,43 @@ export default function LoginPage() {
     }
   }
 
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!resetEmail) {
+      toast({
+        title: 'Error',
+        description: 'Please enter your email address.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsResetting(true);
+    const result = await resetPassword(resetEmail);
+    setIsResetting(false);
+
+    if (result.success) {
+      toast({
+        title: 'Email Sent',
+        description: 'Check your inbox for password reset instructions.',
+      });
+      setShowResetDialog(false);
+    } else {
+      toast({
+        title: 'Error',
+        description: result.error || 'Failed to send reset email.',
+        variant: 'destructive',
+      });
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-secondary">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-            <div className="flex justify-center mb-4">
-                <Logo size="lg" />
-            </div>
+          <div className="flex justify-center mb-4">
+            <Logo size="lg" />
+          </div>
           <CardTitle className="text-2xl font-bold">IDKPay</CardTitle>
           <CardDescription>Log in to manage your shared expenses</CardDescription>
         </CardHeader>
@@ -105,7 +154,18 @@ export default function LoginPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel className="flex justify-between items-center">
+                      Password
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="px-0 h-auto font-normal"
+                        type="button"
+                        onClick={() => setShowResetDialog(true)}
+                      >
+                        Forgot password?
+                      </Button>
+                    </FormLabel>
                     <FormControl>
                       <Input type="password" placeholder="••••••••" {...field} />
                     </FormControl>
@@ -128,6 +188,44 @@ export default function LoginPage() {
           </p>
         </CardFooter>
       </Card>
+
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Enter your email address and we'll send you a link to reset your password.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleResetPassword}>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">Email Address</Label>
+                <Input
+                  id="reset-email"
+                  placeholder="name@example.com"
+                  type="email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setShowResetDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isResetting}>
+                {isResetting ? 'Sending...' : 'Send Reset Link'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

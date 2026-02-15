@@ -2,8 +2,8 @@
 // Next.js Server Actions are not utilized here to avoid module bundling conflicts.
 
 import { z } from 'zod';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, UserCredential, Auth } from 'firebase/auth';
-import { doc, setDoc, getDoc, runTransaction, serverTimestamp, collection, getDocs, query, where, updateDoc, arrayUnion, addDoc, deleteDoc, orderBy, Timestamp } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendEmailVerification, sendPasswordResetEmail, UserCredential, Auth } from 'firebase/auth';
+import { doc, setDoc, getDoc, runTransaction, serverTimestamp, collection, getDocs, query, where, updateDoc, arrayUnion, arrayRemove, addDoc, deleteDoc, orderBy, Timestamp } from 'firebase/firestore';
 import type { Balance, Expense } from '@/lib/types';
 import { PlaceHolderImages, DEFAULT_PROFILE_PICTURE } from '@/lib/placeholder-images';
 import { auth, db } from '@/lib/firebase';
@@ -56,6 +56,15 @@ export async function signUp(values: any) {
     // Create Firebase user
     const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
     const user = userCredential.user;
+
+    // Send verification email
+    try {
+      await sendEmailVerification(user);
+      console.log('Verification email sent successfully to:', values.email);
+    } catch (verifError: any) {
+      console.error('Error sending verification email during signup:', verifError);
+      // We don't throw here so the user can still be created and they can try resending from the verification page
+    }
     console.log('Firebase user created:', user.uid);
 
     // Check if user document already exists (for users who were removed but still have auth)
@@ -88,6 +97,12 @@ export async function signUp(values: any) {
 
         const groupRef = doc(collection(db, 'groups'));
         await setDoc(groupRef, groupData);
+
+        // Trigger invitation emails for other members
+        const invitedMemberEmails = values.memberEmails.split(',').map((email: string) => email.trim()).filter((email: string) => email !== '');
+        for (const invitedEmail of invitedMemberEmails) {
+          triggerInviteEmail(invitedEmail, values.email, values.groupName, values.name);
+        }
 
         updateData.groupId = groupRef.id;
         updateData.role = 'admin';
@@ -139,6 +154,12 @@ export async function signUp(values: any) {
 
         await setDoc(doc(db, 'users', user.uid), userData);
         console.log('Group created successfully');
+
+        // Trigger invitation emails for other members
+        const invitedMemberEmails = values.memberEmails.split(',').map((email: string) => email.trim()).filter((email: string) => email !== '');
+        for (const invitedEmail of invitedMemberEmails) {
+          triggerInviteEmail(invitedEmail, values.email, values.groupName, values.name);
+        }
 
       } else if (values.mode === 'join') {
         // Join existing group
@@ -240,17 +261,121 @@ const logInSchema = z.object({
   password: z.string().min(6),
 });
 
+async function checkIfEmailRegistered(email: string) {
+  const usersRef = collection(db, 'users');
+  const q = query(usersRef, where('email', '==', email));
+  const querySnapshot = await getDocs(q);
+  return !querySnapshot.empty;
+}
+
 export async function logIn(values: z.infer<typeof logInSchema>) {
   try {
+    // Manual check for email existence to provide better UX
+    const isRegistered = await checkIfEmailRegistered(values.email);
+    if (!isRegistered) {
+      return { error: "No account found with this email. Please click the sign up button to register." };
+    }
+
     await signInWithEmailAndPassword(auth, values.email, values.password);
     return { success: true };
   } catch (error: any) {
+    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+      // If it's invalid-credential, we already checked existence, so it must be a wrong password
+      // But we can be extra sure by returning the same registration message if we didn't check before
+      const isRegistered = await checkIfEmailRegistered(values.email);
+      if (!isRegistered) {
+        return { error: "No account found with this email. Please click the sign up button to register." };
+      }
+      return { error: "Invalid password. Please try again." };
+    }
+    return { error: error.message };
+  }
+}
+
+export async function resetPassword(email: string) {
+  try {
+    const isRegistered = await checkIfEmailRegistered(email);
+    if (!isRegistered) {
+      return { error: "No account found with this email. Please click the sign up button to register." };
+    }
+
+    await sendPasswordResetEmail(auth, email);
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error sending password reset email:', error);
+    if (error.code === 'auth/user-not-found') {
+      return { error: "No account found with this email. Please click the sign up button to register." };
+    }
+    if (error.code === 'auth/too-many-requests') {
+      return { error: 'Too many requests. Please wait a few minutes.' };
+    }
     return { error: error.message };
   }
 }
 
 export async function signOutAction() {
   await signOut(auth);
+}
+
+export async function resendVerificationEmail() {
+  const user = auth.currentUser;
+  if (!user) {
+    console.error('Resend verification failed: No user authenticated');
+    return { error: 'No user authenticated' };
+  }
+
+  try {
+    console.log('Attempting to resend verification email to:', user.email);
+    await sendEmailVerification(user);
+    console.log('Resend successful');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error resending verification email:', error);
+    // Provide more descriptive errors for common Firebase Auth issues
+    if (error.code === 'auth/too-many-requests') {
+      return { error: 'Too many requests. Please wait a few minutes before trying again.' };
+    }
+    return { error: error.message };
+  }
+}
+
+export async function deleteAccount() {
+  const user = auth.currentUser;
+  if (!user) return { error: 'No user authenticated' };
+
+  try {
+    const userDocRef = doc(db, 'users', user.uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      const groupId = userData.groupId;
+      const email = userData.email;
+
+      // Remove from group if exists
+      if (groupId) {
+        const groupRef = doc(db, 'groups', groupId);
+        await updateDoc(groupRef, {
+          memberIds: arrayRemove(user.uid),
+          memberEmails: arrayRemove(email)
+        });
+      }
+
+      // Delete user document
+      await deleteDoc(userDocRef);
+    }
+
+    // Delete Auth user
+    await user.delete();
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error deleting account:', error);
+    if (error.code === 'auth/requires-recent-login') {
+      return { error: 'reauthentication-required' };
+    }
+    return { error: error.message };
+  }
 }
 
 
@@ -758,6 +883,10 @@ export async function addGroupMember(values: z.infer<typeof addGroupMemberSchema
     });
 
     console.log('Member added to group successfully');
+
+    // Trigger invitation email
+    triggerInviteEmail(values.memberEmail, adminData.email, groupData.name, adminData.name);
+
     return { success: true };
   } catch (error: any) {
     console.error('Error adding group member:', error);
@@ -1095,6 +1224,81 @@ export async function createNotification(notificationData: {
 
   return { success: true, id: notificationRef.id };
 }
+
+// --- HELPER FOR INVITATIONS ---
+async function triggerInviteEmail(
+  toEmail: string,
+  adminEmail: string,
+  groupName: string,
+  adminName: string
+) {
+  try {
+    console.log(
+      `[INVITE] Triggering invitation email for ${toEmail} from ${adminEmail} (${adminName}) in ${groupName}`
+    );
+
+    const response = await fetch('/api/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toEmail, adminEmail, groupName, adminName }),
+    });
+
+    const contentType = response.headers.get('content-type');
+
+    let responseData: any = null;
+
+    // --- Safely parse JSON or fallback to text ---
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        responseData = await response.json();
+      } catch (parseErr) {
+        console.warn('[INVITE] Failed to parse JSON response:', parseErr);
+        responseData = await response.text();
+      }
+    } else {
+      responseData = await response.text();
+    }
+
+    // --- Handle failed requests ---
+    if (!response.ok) {
+      console.error(
+        `[INVITE] Invitation failure (${response.status}) for ${toEmail}:`,
+        typeof responseData === 'object'
+          ? JSON.stringify(responseData, null, 2)
+          : responseData
+      );
+
+      return {
+        success: false,
+        error:
+          responseData?.error ||
+          responseData?.message ||
+          (typeof responseData === 'string' ? responseData : `Server error (${response.status})`),
+      };
+    }
+
+    // --- Success ---
+    console.log(
+      `[INVITE] Invitation successful for ${toEmail}:`,
+      typeof responseData === 'object'
+        ? JSON.stringify(responseData, null, 2)
+        : responseData
+    );
+
+    return { success: true, data: responseData };
+  } catch (err: any) {
+    console.error(
+      `[INVITE] Fatal error in triggerInviteEmail for ${toEmail}:`,
+      err
+    );
+
+    return {
+      success: false,
+      error: err?.message || 'Network or unexpected error',
+    };
+  }
+}
+
 
 export async function calculateBalances(expenses: Expense[]): Promise<Balance[]> {
   const balances: Map<string, number> = new Map();

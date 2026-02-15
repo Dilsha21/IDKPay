@@ -17,11 +17,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  refreshAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  refreshAuth: async () => { },
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -39,18 +41,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
           const userData = userDoc.data() as User;
-          console.log('User data from Firestore:', userData);
-          console.log('User groupId:', userData.groupId);
-          console.log('User role:', userData.role);
+
           // Ensure user has default avatar if not set
-          const userWithDefaultAvatar = {
+          const userWithAuthInfo = {
             ...userData,
+            emailVerified: firebaseUser.emailVerified,
             avatarUrl: userData.avatarUrl || 'https://static.vecteezy.com/system/resources/previews/020/765/399/non_2x/default-profile-account-unknown-icon-black-silhouette-free-vector.jpg'
           };
-          setUser(userWithDefaultAvatar as User);
+          setUser(userWithAuthInfo as User);
         } else {
-          // Handle case where user exists in Auth but not Firestore
-          setUser(null); 
+          setUser(null);
         }
       } else {
         setUser(null);
@@ -65,36 +65,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (loading) return;
 
     const isAuthPage = pathname === '/login' || pathname === '/signup';
+    const isVerifyPage = pathname === '/verify-email';
 
     if (!user && !isAuthPage) {
       router.push('/login');
+    } else if (user && !user.emailVerified && !isVerifyPage && !isAuthPage) {
+      router.push('/verify-email');
+    } else if (user && user.emailVerified && isVerifyPage) {
+      router.push('/');
     } else if (user && isAuthPage) {
       router.push('/');
     }
   }, [user, loading, pathname, router]);
 
+  const refreshAuth = async () => {
+    if (auth.currentUser) {
+      await auth.currentUser.reload();
+      const firebaseUser = auth.currentUser;
+
+      if (user) {
+        setUser({
+          ...user,
+          emailVerified: firebaseUser.emailVerified
+        });
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="w-full max-w-md p-8 space-y-4">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
         </div>
       </div>
     );
   }
-  
+
   const isAuthPage = pathname === '/login' || pathname === '/signup';
   if (!user && !isAuthPage) {
-      return null; // Prevent flicker of protected content
+    return null; // Prevent flicker of protected content
   }
   if (user && isAuthPage) {
-      return null; // Prevent flicker of auth page when logged in
+    return null; // Prevent flicker of auth page when logged in
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, refreshAuth }}>
       {children}
     </AuthContext.Provider>
   );

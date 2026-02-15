@@ -12,6 +12,7 @@ export interface User {
   collegeName?: string;
   department?: string;
   collegeYear?: string;
+  emailVerified?: boolean;
 }
 
 export interface Expense {

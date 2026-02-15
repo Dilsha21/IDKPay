@@ -2,15 +2,26 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/app/auth-provider';
-import { updateProfile } from '@/app/actions';
+import { updateProfile, deleteAccount } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Upload, User } from 'lucide-react';
+import { Upload, User, Trash2 } from 'lucide-react';
 import { DEFAULT_PROFILE_PICTURE } from '@/lib/placeholder-images';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export function ProfileClient() {
   const { user } = useAuth();
@@ -22,6 +33,7 @@ export function ProfileClient() {
   const [collegeName, setCollegeName] = useState(user?.collegeName || '');
   const [department, setDepartment] = useState(user?.department || '');
   const [collegeYear, setCollegeYear] = useState(user?.collegeYear || '');
+  const [isDeleting, setIsDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync state with user data when it loads
@@ -44,6 +56,41 @@ export function ProfileClient() {
       ? user.avatarUrl
       : PROFESSIONAL_DEFAULT
   );
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      const result = await deleteAccount();
+      if (result.error) {
+        if (result.error === 'reauthentication-required') {
+          toast({
+            title: 'Action Required',
+            description: 'Please log out and log back in to verify your identity before deleting your account.',
+            variant: 'destructive',
+          });
+        } else {
+          toast({
+            title: 'Delete Failed',
+            description: result.error,
+            variant: 'destructive',
+          });
+        }
+      } else {
+        toast({
+          title: 'Account Deleted',
+          description: 'Your account and data have been removed. Redirecting...',
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -365,6 +412,42 @@ export function ProfileClient() {
                 {isSubmitting ? 'Updating...' : 'Update Profile'}
               </Button>
             </form>
+
+            <div className="mt-12 pt-8 border-t">
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-destructive mb-2 flex items-center">
+                  <Trash2 className="mr-2 h-5 w-5" /> Danger Zone
+                </h3>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Once you delete your account, there is no going back. All your personal data and group membership will be removed from the database.
+                </p>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={isDeleting}>
+                      {isDeleting ? 'Deleting Account...' : 'Delete My Account'}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete your
+                        account and remove your data from our servers.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleDeleteAccount}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Yes, Delete My Account
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
