@@ -31,6 +31,7 @@ export function BalanceSummary({ balances, users, currentUser, expenses }: Balan
     toUser: User;
     amount: number;
     partialAmount?: number;
+    expenseIds: string[];
   } | null>(null);
   const [partialAmount, setPartialAmount] = useState('');
   const [showFinalConfirmation, setShowFinalConfirmation] = useState(false);
@@ -75,7 +76,7 @@ export function BalanceSummary({ balances, users, currentUser, expenses }: Balan
     return { youOwe, othersOweYou, totalOwedToYou, totalYouOwe };
   }, [balances, currentUser, usersMap]);
 
-  const handleMarkAsPaid = async (fromUserId: string, toUserId: string, amount: number) => {
+  const handleMarkAsPaid = async (fromUserId: string, toUserId: string, amount: number, expenseIds: string[]) => {
     const paymentKey = `${fromUserId}-${toUserId}`;
 
     setProcessingPayments(prev => new Set(prev).add(paymentKey));
@@ -84,7 +85,8 @@ export function BalanceSummary({ balances, users, currentUser, expenses }: Balan
       const result = await markAsPaid({
         fromUserId,
         toUserId,
-        amount
+        amount,
+        expenseIds
       });
 
       if (result.error) {
@@ -98,7 +100,7 @@ export function BalanceSummary({ balances, users, currentUser, expenses }: Balan
         const toUser = usersMap[toUserId];
         toast({
           title: 'Payment Recorded!',
-          description: `${fromUser.name} paid ${toUser.name} Rs. ${amount.toFixed(2)}`,
+          description: `${fromUser.name} paid ${toUser.name} Rs. ${amount.toFixed(2)}. Related expenses are now locked for editing.`,
         });
       }
     } catch (error: any) {
@@ -116,7 +118,7 @@ export function BalanceSummary({ balances, users, currentUser, expenses }: Balan
     }
   };
 
-  const handlePartialPayment = async (fromUserId: string, toUserId: string, amount: number) => {
+  const handlePartialPayment = async (fromUserId: string, toUserId: string, amount: number, expenseIds: string[]) => {
     const paymentKey = `${fromUserId}-${toUserId}-partial`;
 
     setProcessingPayments(prev => new Set(prev).add(paymentKey));
@@ -125,7 +127,8 @@ export function BalanceSummary({ balances, users, currentUser, expenses }: Balan
       const result = await recordPartialPayment({
         fromUserId,
         toUserId,
-        amount
+        amount,
+        expenseIds
       });
 
       if (result.error) {
@@ -139,7 +142,7 @@ export function BalanceSummary({ balances, users, currentUser, expenses }: Balan
         const toUser = usersMap[toUserId];
         toast({
           title: 'Partial Payment Recorded!',
-          description: `${fromUser.name} paid ${toUser.name} Rs. ${amount.toFixed(2)}`,
+          description: `${fromUser.name} paid ${toUser.name} Rs. ${amount.toFixed(2)}. Related expenses are now locked for editing.`,
         });
       }
     } catch (error: any) {
@@ -162,7 +165,7 @@ export function BalanceSummary({ balances, users, currentUser, expenses }: Balan
 
     if (confirmDialog.type === 'full') {
       setConfirmDialog(null);
-      await handleMarkAsPaid(confirmDialog.fromUser.uid, confirmDialog.toUser.uid, confirmDialog.amount);
+      await handleMarkAsPaid(confirmDialog.fromUser.uid, confirmDialog.toUser.uid, confirmDialog.amount, confirmDialog.expenseIds);
     } else if (confirmDialog.type === 'partial') {
       const amount = parseFloat(partialAmount);
       if (!amount || amount <= 0 || amount > confirmDialog.amount) {
@@ -186,7 +189,7 @@ export function BalanceSummary({ balances, users, currentUser, expenses }: Balan
     setShowFinalConfirmation(false);
     setConfirmDialog(null);
 
-    await handlePartialPayment(confirmDialog.fromUser.uid, confirmDialog.toUser.uid, amount);
+    await handlePartialPayment(confirmDialog.fromUser.uid, confirmDialog.toUser.uid, amount, confirmDialog.expenseIds);
     setPartialAmount('');
   };
 
@@ -347,7 +350,8 @@ export function BalanceSummary({ balances, users, currentUser, expenses }: Balan
                               type: 'full',
                               fromUser: user,
                               toUser: currentUser,
-                              amount
+                              amount,
+                              expenseIds: contributingExpenses.map(e => e.id)
                             })}
                           >
                             <Check className="mr-2 h-3 w-3" />
@@ -358,7 +362,8 @@ export function BalanceSummary({ balances, users, currentUser, expenses }: Balan
                               type: 'partial',
                               fromUser: user,
                               toUser: currentUser,
-                              amount
+                              amount,
+                              expenseIds: contributingExpenses.map(e => e.id)
                             })}
                           >
                             <ArrowRight className="mr-2 h-3 w-3" />
@@ -413,6 +418,10 @@ export function BalanceSummary({ balances, users, currentUser, expenses }: Balan
                 ? `Are you sure you want to mark this debt as fully paid? This will record that ${confirmDialog?.fromUser.name} paid ${confirmDialog?.toUser.name} Rs. ${confirmDialog?.amount?.toFixed(2)}.`
                 : `Record a partial payment from ${confirmDialog?.fromUser.name} to ${confirmDialog?.toUser.name}.`
               }
+              <span className="mt-2 text-amber-600 font-medium flex items-center gap-1">
+                <MoreHorizontal className="h-4 w-4" />
+                <span>Note: Once marked, you won't be able to edit the related expense logs.</span>
+              </span>
             </DialogDescription>
           </DialogHeader>
 

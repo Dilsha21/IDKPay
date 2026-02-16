@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from './ui/skeleton';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Edit, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Edit, Trash2, Lock } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -76,30 +76,37 @@ export function ExpenseList({ expenses, users, currentUserId, onEditExpense, onD
                   </p>
                 </div>
                 {expense.payerId === currentUserId && (onEditExpense || onDeleteExpense) && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {onEditExpense && (
-                        <DropdownMenuItem onClick={() => onEditExpense(expense)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                      )}
-                      {onDeleteExpense && (
-                        <DropdownMenuItem
-                          onClick={() => onDeleteExpense(expense.id)}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  (!expense.settledWith || expense.settledWith.length === 0) ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {onEditExpense && (
+                          <DropdownMenuItem onClick={() => onEditExpense(expense)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                        )}
+                        {onDeleteExpense && (
+                          <DropdownMenuItem
+                            onClick={() => onDeleteExpense(expense.id)}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <div className="flex items-center text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md" title="This expense is locked because it has been partially or fully settled.">
+                      <Lock className="h-3 w-3 mr-1" />
+                      Locked
+                    </div>
+                  )
                 )}
               </div>
             </div>

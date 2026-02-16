@@ -473,6 +473,7 @@ const markAsPaidSchema = z.object({
   fromUserId: z.string(),
   toUserId: z.string(),
   amount: z.number().gt(0),
+  expenseIds: z.array(z.string()).optional(),
 });
 
 export async function markAsPaid(values: z.infer<typeof markAsPaidSchema>) {
@@ -533,8 +534,19 @@ export async function markAsPaid(values: z.infer<typeof markAsPaidSchema>) {
         toUserId: values.toUserId,
         amount: values.amount,
         timestamp: serverTimestamp(),
-        type: 'payment'
+        type: 'payment',
+        expenseIds: values.expenseIds || []
       });
+
+      // Mark expenses as settled with the payer
+      if (values.expenseIds && values.expenseIds.length > 0) {
+        values.expenseIds.forEach(id => {
+          const expRef = doc(db, 'expenses', id);
+          transaction.update(expRef, {
+            settledWith: arrayUnion(values.fromUserId)
+          });
+        });
+      }
     });
 
     // Notify the debtor (fromUserId) that their debt was marked as paid
@@ -546,6 +558,15 @@ export async function markAsPaid(values: z.infer<typeof markAsPaidSchema>) {
       type: 'debt-paid',
       title: 'Debt Marked as Paid',
       message: `${markerName} marked your debt of Rs. ${values.amount.toFixed(2)} as paid`,
+      addedBy: values.toUserId,
+    });
+
+    // Notify the marker about the edit lock
+    await createNotification({
+      userId: values.toUserId,
+      type: 'debt-paid',
+      title: 'Expenses Locked',
+      message: `You marked ${values.amount.toFixed(2)} as paid for a user. Related expense logs are now locked for editing.`,
       addedBy: values.toUserId,
     });
 
@@ -618,6 +639,12 @@ export async function updateExpense(values: z.infer<typeof updateExpenseSchema>)
     }
 
     const originalExpense = expenseDoc.data() as any;
+
+    // Check if expense is settled
+    if (originalExpense.settledWith && originalExpense.settledWith.length > 0) {
+      throw new Error('This expense is locked and cannot be edited because it has been partially or fully settled.');
+    }
+
     const originalPerPersonShare = originalExpense.amount / originalExpense.sharedWith.length;
     const newPerPersonShare = values.amount / values.sharedWith.length;
 
@@ -652,34 +679,29 @@ export async function updateExpense(values: z.infer<typeof updateExpenseSchema>)
         updatedAt: serverTimestamp(),
       });
 
-      // 2. Revert original balance changes
-      originalParticipants.forEach((participantId: string) => {
+      // 2. Calculate and apply net balance changes
+      allParticipants.forEach(participantId => {
         const userIDs = [originalExpense.payerId, participantId].sort();
-        const balanceRefIndex = balanceRefs.findIndex(({ participantId }) => participantId === participantId);
+        const balanceRefIndex = balanceRefs.findIndex(br => br.participantId === participantId);
         const balanceDoc = balanceDocs[balanceRefIndex];
         const currentAmount = balanceDoc.exists() ? (balanceDoc.data() as any).amount : 0;
 
-        // Reverse the original balance change
-        const amountChange = originalExpense.payerId === userIDs[0] ? -originalPerPersonShare : originalPerPersonShare;
-        const revertedAmount = currentAmount + amountChange;
+        // Determine share changes
+        const isOriginal = originalParticipants.includes(participantId);
+        const isNew = newParticipants.includes(participantId);
 
-        transaction.set(balanceRefs[balanceRefIndex].ref, {
-          id: userIDs.join('_'),
-          users: userIDs,
-          amount: revertedAmount,
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-      });
+        let amountChange = 0;
 
-      // 3. Apply new balance changes
-      newParticipants.forEach((participantId: string) => {
-        const userIDs = [originalExpense.payerId, participantId].sort();
-        const balanceRefIndex = balanceRefs.findIndex(({ participantId }) => participantId === participantId);
-        const balanceDoc = balanceDocs[balanceRefIndex];
-        const currentAmount = balanceDoc.exists() ? (balanceDoc.data() as any).amount : 0;
+        // Step 1: Subtract original share if participant was in original expense
+        if (isOriginal) {
+          amountChange -= (originalExpense.payerId === userIDs[0] ? originalPerPersonShare : -originalPerPersonShare);
+        }
 
-        // Apply the new balance change
-        const amountChange = originalExpense.payerId === userIDs[0] ? newPerPersonShare : -newPerPersonShare;
+        // Step 2: Add new share if participant is in new expense
+        if (isNew) {
+          amountChange += (originalExpense.payerId === userIDs[0] ? newPerPersonShare : -newPerPersonShare);
+        }
+
         const newAmount = currentAmount + amountChange;
 
         transaction.set(balanceRefs[balanceRefIndex].ref, {
@@ -719,6 +741,12 @@ export async function deleteExpense(values: z.infer<typeof deleteExpenseSchema>)
     }
 
     const expense = expenseDoc.data() as any;
+
+    // Check if expense is settled
+    if (expense.settledWith && expense.settledWith.length > 0) {
+      throw new Error('This expense is locked and cannot be deleted because it has been partially or fully settled.');
+    }
+
     const perPersonShare = expense.amount / expense.sharedWith.length;
 
     await runTransaction(db, async (transaction) => {
@@ -939,7 +967,14 @@ export async function checkEmailInvitation(email: string) {
   }
 }
 
-export async function recordPartialPayment(values: any) {
+const recordPartialPaymentSchema = z.object({
+  fromUserId: z.string(),
+  toUserId: z.string(),
+  amount: z.number().gt(0),
+  expenseIds: z.array(z.string()).optional(),
+});
+
+export async function recordPartialPayment(values: z.infer<typeof recordPartialPaymentSchema>) {
   try {
     console.log('Recording partial payment:', values);
 
@@ -998,7 +1033,18 @@ export async function recordPartialPayment(values: any) {
         amount,
         type: 'partial',
         timestamp: serverTimestamp(),
+        expenseIds: values.expenseIds || []
       });
+
+      // Mark expenses as settled with the payer
+      if (values.expenseIds && values.expenseIds.length > 0) {
+        values.expenseIds.forEach(id => {
+          const expRef = doc(db, 'expenses', id);
+          transaction.update(expRef, {
+            settledWith: arrayUnion(fromUserId)
+          });
+        });
+      }
     });
 
     // Notify the debtor that a partial payment was recorded
@@ -1010,6 +1056,15 @@ export async function recordPartialPayment(values: any) {
       type: 'debt-partially-paid',
       title: 'Partial Payment Recorded',
       message: `${markerName} recorded a partial payment of Rs. ${amount.toFixed(2)} from you`,
+      addedBy: toUserId,
+    });
+
+    // Notify the marker about the edit lock
+    await createNotification({
+      userId: toUserId,
+      type: 'debt-partially-paid',
+      title: 'Expenses Locked',
+      message: `You recorded a partial payment of Rs. ${amount.toFixed(2)}. Related expense logs are now locked for editing.`,
       addedBy: toUserId,
     });
 

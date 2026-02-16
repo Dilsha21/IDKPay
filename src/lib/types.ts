@@ -23,6 +23,7 @@ export interface Expense {
   sharedWith: string[];
   perPersonShare: number;
   timestamp: Timestamp;
+  settledWith?: string[];
 }
 
 export interface Balance {
