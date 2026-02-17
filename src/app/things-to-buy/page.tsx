@@ -1,5 +1,6 @@
 'use client';
 
+import { Header } from '@/components/header';
 import { useAuth } from '@/app/auth-provider';
 import { useFirestoreQuery } from '@/hooks/use-firestore-query';
 import { db } from '@/lib/firebase';
@@ -45,118 +46,122 @@ export default function ThingsToBuyPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold flex items-center">
-          <ShoppingCart className="mr-2 h-8 w-8" />
-          Things to Buy
-        </h1>
-        <Dialog open={isAddThingOpen} onOpenChange={setAddThingOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Thing
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add Thing to Buy</DialogTitle>
-            </DialogHeader>
-            <AddThingForm
-              onSuccess={() => setAddThingOpen(false)}
-              userId={user?.uid || ''}
-              groupId={user?.groupId || ''}
-            />
-          </DialogContent>
-        </Dialog>
-      </div>
+    <div className="flex flex-col min-h-screen">
+      <Header />
+      <main className="flex-1 container mx-auto py-8 space-y-6">
+        <div className="flex justify-between items-center">
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Things to Buy</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="space-y-2">
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
-                </div>
-              ))}
-            </div>
-          ) : thingsToBuy && thingsToBuy.length > 0 ? (
-            <div className="space-y-4">
-              {thingsToBuy.map((thing) => (
-                <ThingCard
-                  key={thing.id}
-                  thing={thing}
-                  currentUserId={user.uid}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No things to buy found.</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Add your first thing to buy to get started!
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          <h1 className="text-3xl font-bold flex items-center">
+            <ShoppingCart className="mr-2 h-8 w-8" />
+            Things to Buy
+          </h1>
+          <Dialog open={isAddThingOpen} onOpenChange={setAddThingOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Thing
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Thing to Buy</DialogTitle>
+              </DialogHeader>
+              <AddThingForm
+                onSuccess={() => setAddThingOpen(false)}
+                userId={user?.uid || ''}
+                groupId={user?.groupId || ''}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
 
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Already Bought</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="space-y-2">
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
-                </div>
-              ))}
-            </div>
-          ) : alreadyBought && alreadyBought.length > 0 ? (
-            <div className="space-y-4">
-              {alreadyBought.map((thing) => (
-                <div key={thing.id} className="border rounded-lg p-4 space-y-2">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{thing.name}</h3>
-                      {thing.description && (
-                        <p className="text-sm text-muted-foreground mt-1">{thing.description}</p>
-                      )}
-                      <div className="flex items-center gap-2 mt-2">
-                        <Badge className="bg-green-100 text-green-800">
-                          <Check className="mr-1 h-4 w-4" />
-                          Bought
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">
-                          Added {thing.timestamp ? format(thing.timestamp.toDate(), 'MMM dd, yyyy') : 'just now'}
-                        </span>
+        <Card>
+          <CardHeader>
+            <CardTitle>Things to Buy</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
+                ))}
+              </div>
+            ) : thingsToBuy && thingsToBuy.length > 0 ? (
+              <div className="space-y-4">
+                {thingsToBuy.map((thing) => (
+                  <ThingCard
+                    key={thing.id}
+                    thing={thing}
+                    currentUserId={user.uid}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No things to buy found.</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Add your first thing to buy to get started!
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Already Bought</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
+                ))}
+              </div>
+            ) : alreadyBought && alreadyBought.length > 0 ? (
+              <div className="space-y-4">
+                {alreadyBought.map((thing) => (
+                  <div key={thing.id} className="border rounded-lg p-4 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg">{thing.name}</h3>
+                        {thing.description && (
+                          <p className="text-sm text-muted-foreground mt-1">{thing.description}</p>
+                        )}
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge className="bg-green-100 text-green-800">
+                            <Check className="mr-1 h-4 w-4" />
+                            Bought
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">
+                            Added {thing.timestamp ? format(thing.timestamp.toDate(), 'MMM dd, yyyy') : 'just now'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-green-600">Bought</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-green-600">Bought</p>
-                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No bought items yet.</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Items will appear here once they're marked as bought.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No bought items yet.</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Items will appear here once they're marked as bought.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </main>
     </div>
   );
 }

@@ -66,15 +66,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const isAuthPage = pathname === '/login' || pathname === '/signup';
     const isVerifyPage = pathname === '/verify-email';
+    const isLandingPage = pathname === '/';
 
-    if (!user && !isAuthPage) {
-      router.push('/login');
+    if (!user && !isAuthPage && !isLandingPage) {
+      router.push('/');
     } else if (user && !user.emailVerified && !isVerifyPage && !isAuthPage) {
       router.push('/verify-email');
     } else if (user && user.emailVerified && isVerifyPage) {
-      router.push('/');
-    } else if (user && isAuthPage) {
-      router.push('/');
+      router.push('/dashboard');
+    } else if (user && (isAuthPage || isLandingPage)) {
+      router.push('/dashboard');
     }
   }, [user, loading, pathname, router]);
 
@@ -105,11 +106,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const isAuthPage = pathname === '/login' || pathname === '/signup';
-  if (!user && !isAuthPage) {
+  const isLandingPage = pathname === '/';
+  if (!user && !isAuthPage && !isLandingPage) {
     return null; // Prevent flicker of protected content
   }
-  if (user && isAuthPage) {
-    return null; // Prevent flicker of auth page when logged in
+  if (user && (isAuthPage || isLandingPage)) {
+    return null; // Prevent flicker of auth/landing page when logged in
   }
 
   return (

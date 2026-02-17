@@ -1,5 +1,6 @@
 'use client';
 
+import { Header } from '@/components/header';
 import { useAuth } from '@/app/auth-provider';
 import { useFirestoreQuery } from '@/hooks/use-firestore-query';
 import { db } from '@/lib/firebase';
@@ -68,108 +69,112 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Notifications</h1>
-          {unreadCount > 0 && (
-            <p className="text-sm text-muted-foreground mt-1">
-              {unreadCount} unread
-            </p>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <Button
-            onClick={handleMarkAllAsRead}
-            disabled={isMarkingAll || unreadCount === 0}
-            variant="outline"
-            size="sm"
-          >
-            Mark All as Read
-          </Button>
-        </div>
-      </div>
+    <div className="flex flex-col min-h-screen">
+      <Header />
+      <main className="flex-1 container mx-auto py-8 space-y-6">
+        <div className="flex justify-between items-center mb-6">
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Notifications</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-4">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="space-y-2">
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
-                </div>
-              ))}
-            </div>
-          ) : sortedNotifications.length > 0 ? (
-            <div className="space-y-3">
-              {sortedNotifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`border rounded-lg p-4 space-y-2 transition-colors ${!notification.read
-                    ? 'bg-primary/5 border-primary/20'
-                    : 'hover:bg-secondary/50'
-                    }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        {!notification.read && (
-                          <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
-                        )}
-                        <Badge
-                          variant="secondary"
-                          className={getNotificationTypeColor(notification.type)}
-                        >
-                          {getNotificationTypeLabel(notification.type)}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {notification.timestamp?.toDate
-                            ? format(notification.timestamp.toDate(), 'MMM dd, yyyy HH:mm')
-                            : ''}
-                        </span>
+          <div>
+            <h1 className="text-3xl font-bold">Notifications</h1>
+            {unreadCount > 0 && (
+              <p className="text-sm text-muted-foreground mt-1">
+                {unreadCount} unread
+              </p>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleMarkAllAsRead}
+              disabled={isMarkingAll || unreadCount === 0}
+              variant="outline"
+              size="sm"
+            >
+              Mark All as Read
+            </Button>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Notifications</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-4">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
+                ))}
+              </div>
+            ) : sortedNotifications.length > 0 ? (
+              <div className="space-y-3">
+                {sortedNotifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    className={`border rounded-lg p-4 space-y-2 transition-colors ${!notification.read
+                      ? 'bg-primary/5 border-primary/20'
+                      : 'hover:bg-secondary/50'
+                      }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          {!notification.read && (
+                            <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
+                          )}
+                          <Badge
+                            variant="secondary"
+                            className={getNotificationTypeColor(notification.type)}
+                          >
+                            {getNotificationTypeLabel(notification.type)}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {notification.timestamp?.toDate
+                              ? format(notification.timestamp.toDate(), 'MMM dd, yyyy HH:mm')
+                              : ''}
+                          </span>
+                        </div>
+                        <h3 className="font-semibold">{notification.title}</h3>
+                        <p className="text-sm text-muted-foreground mt-1 whitespace-pre-line">
+                          {notification.message}
+                        </p>
                       </div>
-                      <h3 className="font-semibold">{notification.title}</h3>
-                      <p className="text-sm text-muted-foreground mt-1 whitespace-pre-line">
-                        {notification.message}
-                      </p>
-                    </div>
-                    <div className="flex gap-1 flex-shrink-0 ml-2">
-                      {!notification.read && (
+                      <div className="flex gap-1 flex-shrink-0 ml-2">
+                        {!notification.read && (
+                          <Button
+                            onClick={() => handleMarkAsRead(notification.id)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs"
+                          >
+                            Mark Read
+                          </Button>
+                        )}
                         <Button
-                          onClick={() => handleMarkAsRead(notification.id)}
+                          onClick={() => handleDeleteNotification(notification.id)}
                           variant="ghost"
                           size="sm"
-                          className="text-xs"
                         >
-                          Mark Read
+                          <Trash2 className="h-4 w-4" />
                         </Button>
-                      )}
-                      <Button
-                        onClick={() => handleDeleteNotification(notification.id)}
-                        variant="ghost"
-                        size="sm"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No notifications found.</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Notifications will appear here once available.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No notifications found.</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Notifications will appear here once available.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </main>
     </div>
   );
 }

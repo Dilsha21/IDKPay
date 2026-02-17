@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut, User, Users, ShoppingCart, Receipt, Bell, Settings } from 'lucide-react';
+import { LogOut, User, Users, ShoppingCart, Bell, LayoutDashboard } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { DEFAULT_PROFILE_PICTURE } from '@/lib/placeholder-images';
@@ -53,14 +53,24 @@ export function Header() {
       <div className="container flex h-16 items-center">
         <div className="mr-4 flex">
           <Logo size="md" className="mr-2" />
-          <a className="font-bold text-lg" href="/">
+          <Link className="font-bold text-lg" href="/">
             IDKPay
-          </a>
+          </Link>
         </div>
         <div className="flex flex-1 items-center justify-end space-x-4">
-          {user && (
+          {user ? (
             <>
               <nav className="flex items-center space-x-1 mr-4">
+                <Link href="/dashboard">
+                  <Button
+                    variant={isActive('/dashboard') ? 'default' : 'ghost'}
+                    size="sm"
+                    className="flex items-center"
+                  >
+                    <LayoutDashboard className="mr-2 h-4 w-4" />
+                    Dashboard
+                  </Button>
+                </Link>
                 <Link href="/things-to-buy">
                   <Button
                     variant={isActive('/things-to-buy') ? 'default' : 'ghost'}
@@ -107,17 +117,17 @@ export function Header() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <a href="/profile" className="flex items-center cursor-pointer">
+                    <Link href="/profile" className="flex items-center cursor-pointer">
                       <User className="mr-2 h-4 w-4" />
                       Profile
-                    </a>
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <a href="/group" className="flex items-center cursor-pointer">
+                    <Link href="/group" className="flex items-center cursor-pointer">
                       <Users className="mr-2 h-4 w-4" />
                       Group
-                    </a>
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout}>
@@ -127,10 +137,18 @@ export function Header() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <Button variant="ghost" asChild>
+                <Link href="/login">Login</Link>
+              </Button>
+              <Button asChild>
+                <Link href="/signup">Sign Up</Link>
+              </Button>
+            </div>
           )}
         </div>
       </div>
     </header>
   );
 }
-
