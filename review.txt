@@ -1,0 +1,12 @@
+1. 🔥 Firebase Client SDK — Primary Data Layer
+File: 
+
+src/lib/firebase.ts
+
+The Firebase app is initialized once (singleton pattern) and exports auth and db for use everywhere:
+
+ts
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const auth = getAuth(app);
+const db = getFirestore(app);
+All secrets are stored in .env.local as NEXT_PUBLIC_FIREBASE_* environment variables.
