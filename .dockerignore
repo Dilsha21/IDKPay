@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.github
+.env*
+*.log
+coverage
+README.md
+DEPLOYMENT.md
+VERCEL_DEPLOYMENT.md
+
